@@ -1,0 +1,6 @@
+# Runtime deps cho FastAPI trên Vercel (chỉ những thứ CẦN khi chạy thật).
+# Vercel tự cung cấp server ASGI -> KHÔNG cần uvicorn ở đây (xem requirements-dev.txt).
+fastapi==0.115.6
+httpx==0.28.1
+pyjwt==2.10.1
+sentry-sdk[fastapi]==2.20.0
