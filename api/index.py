@@ -12,6 +12,12 @@ Truy cập dữ liệu QUA db.get_db() (lớp kết nối để riêng — đổ
 from __future__ import annotations
 
 import os
+import sys
+
+# Đảm bảo import được các module cùng thư mục (db, auth, pricing, seed_data)
+# kể cả khi Vercel chạy function với thư mục làm việc khác. PHẢI đặt TRƯỚC các import sibling.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException
