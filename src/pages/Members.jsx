@@ -5,10 +5,13 @@ import { initialOf } from "../lib/ui";
 import { useToasts, Toasts } from "../components/Toasts.jsx";
 
 // Nhân viên cửa hàng (CHỈ owner): mời theo email, đổi vai trò, bật/tắt, gỡ.
+const linkFor = (token) => `${window.location.origin}/join?token=${token}`;
+
 export default function Members() {
   const [members, setMembers] = useState([]);
   const [invite, setInvite] = useState(null); // {email, role}
   const [busy, setBusy] = useState(false);
+  const [lastLink, setLastLink] = useState(null); // link mời vừa tạo (để owner copy gửi NV)
   const { toasts, push, dismiss } = useToasts();
 
   const reload = useCallback(async () => {
@@ -16,14 +19,20 @@ export default function Members() {
   }, [push]);
   useEffect(() => { reload(); }, [reload]);
 
-  const active = members.filter((m) => m.user_id && m.status !== "pending");
-  const pending = members.filter((m) => !m.user_id || m.status === "pending");
+  const active = members.filter((m) => m.user_id && m.status === "active");
+  const pending = members.filter((m) => !m.user_id && m.status === "pending_invite");
+
+  function copy(text) {
+    navigator.clipboard?.writeText(text).then(() => push("Đã copy link mời"), () => push("Không copy được — hãy chọn & copy thủ công", "error"));
+  }
 
   async function sendInvite(e) {
     e.preventDefault(); setBusy(true);
     try {
-      await api.inviteMember({ email: invite.email.trim().toLowerCase(), role: invite.role });
-      push(`Đã mời ${invite.email.trim()}`); setInvite(null); await reload();
+      const r = await api.inviteMember({ email: invite.email.trim().toLowerCase(), role: invite.role });
+      const url = window.location.origin + (r.join_path || `/join?token=${r.invite_token}`);
+      setLastLink({ email: invite.email.trim(), url });
+      push(`Đã tạo lời mời cho ${invite.email.trim()}`); setInvite(null); await reload();
     } catch (e2) { push(e2.message, "error"); } finally { setBusy(false); }
   }
   async function patch(id, body) {
@@ -40,6 +49,18 @@ export default function Members() {
           <i className="ph ph-paper-plane-tilt" /> Mời nhân viên
         </button>
       </div>
+
+      {lastLink && (
+        <div className="card pad invite-link-box">
+          <div className="card-title"><i className="ph ph-link-simple" /> Link mời {lastLink.email}</div>
+          <div className="card-sub" style={{ margin: "4px 0 10px" }}>Chưa gửi email tự động — copy link này gửi cho nhân viên (Zalo/SMS…). Hết hạn sau 7 ngày.</div>
+          <div className="invite-link-row">
+            <input className="input" readOnly value={lastLink.url} onFocus={(e) => e.target.select()} />
+            <button className="btn btn-primary" onClick={() => copy(lastLink.url)}><i className="ph ph-copy" /> Copy</button>
+            <button className="btn" onClick={() => setLastLink(null)}>Đóng</button>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <table className="data-table">
@@ -91,7 +112,10 @@ export default function Members() {
               {pending.map((m) => (
                 <tr key={m.id}>
                   <td>{m.invited_email}</td><td>{m.role === "owner" ? "Chủ cửa hàng" : "Nhân viên"}</td><td className="muted">{shortDate(m.created_at)}</td>
-                  <td className="r"><button className="btn-link" style={{ color: "var(--danger)" }} onClick={() => remove(m.id)}>Thu hồi</button></td>
+                  <td className="r" style={{ whiteSpace: "nowrap" }}>
+                    {m.invite_token && <button className="btn-link" onClick={() => copy(linkFor(m.invite_token))}>Copy link</button>}
+                    <button className="btn-link" style={{ color: "var(--danger)", marginLeft: 12 }} onClick={() => remove(m.id)}>Thu hồi</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
