@@ -108,7 +108,7 @@ export default function App() {
 
       <main className="content">
         {error && <div className="banner banner-error">⚠️ {error} <button className="btn-link" onClick={() => reload(user?.role)}>Thử lại</button></div>}
-        {loading ? <div className="loading">Đang tải dữ liệu…</div> : (
+        {loading ? <SkeletonPage /> : (
           <>
             {activeTab === "sales" && <Sales products={products} customers={customers} onDone={() => reload(user?.role)} />}
             {activeTab === "products" && <Products products={products} onChanged={() => reload(user?.role)} />}
@@ -120,6 +120,21 @@ export default function App() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+// Skeleton loader — cảm giác load nhanh hơn (thay "Đang tải…").
+function SkeletonPage() {
+  return (
+    <div className="page" aria-busy="true">
+      <div className="sk sk-title" />
+      <div className="kpi-row">
+        {[0, 1, 2, 3].map((i) => <div key={i} className="card pad"><div className="sk sk-line w40" /><div className="sk sk-big" /></div>)}
+      </div>
+      <div className="card pad">
+        {[0, 1, 2, 3, 4].map((i) => <div key={i} className="sk sk-row" />)}
+      </div>
     </div>
   );
 }
