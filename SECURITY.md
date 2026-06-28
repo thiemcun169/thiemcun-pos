@@ -27,9 +27,9 @@ TRỰC TIẾP bằng anon key:
 → Nhân viên KHÔNG đọc được danh sách nhân viên khác, allowlist, hay audit log qua anon key.
 
 ## 3. Mật khẩu & MFA
-- **Admin mặc định**: `admin@thiemcun.pos` / `***REDACTED***`, `must_change_password=true` →
-  **BẮT BUỘC đổi mật khẩu lần đầu** (chặn toàn bộ UI khác cho tới khi đổi). *(Đổi/đặt lại default này
-  trước khi go-live thật.)*
+- **Admin bootstrap**: tạo tài khoản admin với mật khẩu **mạnh, đặt lúc tạo** (qua biến môi trường/secret,
+  **KHÔNG hardcode trong repo**), `must_change_password=true` → **BẮT BUỘC đổi mật khẩu lần đầu**
+  (chặn toàn bộ UI khác cho tới khi đổi). *(Đừng commit mật khẩu thật vào repo — kể cả mật khẩu mẫu.)*
 - **MFA (TOTP)**: Supabase Auth hỗ trợ sẵn TOTP (`supabase.auth.mfa.enroll/challenge/verify`).
   Khuyến nghị **bắt buộc MFA cho owner**: sau đăng nhập, nếu `role=owner` và chưa enroll factor →
   ép màn hình enroll. *(Thành phần enroll UI: roadmap — backend/Supabase đã sẵn sàng.)*
@@ -84,7 +84,7 @@ Supabase hỗ trợ SAML SSO (Pro+). Để bật Google Workspace SSO:
 3. Hoặc giữ Google OAuth hiện tại (đã chạy) cho đăng nhập cá nhân.
 
 ## 11. Checklist trước go-live
-- [ ] Đổi mật khẩu admin mặc định (`***REDACTED***`).
+- [ ] Đổi mật khẩu admin bootstrap sang mật khẩu mạnh (không dùng lại mật khẩu mẫu nào).
 - [ ] Bật MFA cho owner.
 - [ ] Bật email confirmation (tắt `mailer_autoconfirm`) + cấu hình SMTP.
 - [ ] Supabase Pro nếu cần PITR/không-ngủ.
