@@ -15,6 +15,15 @@ jobs:
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_PROD_REF }} --password ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
           supabase db push --password ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      # Vercel build Python (FastAPI) cần `uv` để cài deps khi build CỤC BỘ trên runner.
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.uv-bin" sh
+          echo "$HOME/.uv-bin" >> "$GITHUB_PATH"
       - name: Deploy PROD Vercel
         run: |
           npm i -g vercel
