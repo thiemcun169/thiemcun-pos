@@ -32,3 +32,6 @@ playwright-report/
 .vscode/
 .vercel
 .env*
+
+# secrets (never commit)
+.secrets/

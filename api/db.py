@@ -281,22 +281,30 @@ class SupabaseDatabase(Database):
         # timeout ngắn để serverless không treo.
         self._client = httpx.Client(timeout=15.0)
 
+    @staticmethod
+    def _json_or_none(r: "httpx.Response") -> Any:
+        # PostgREST trả body RỖNG khi Prefer=return=minimal (201/204) hoặc khi
+        # PATCH/DELETE không khớp hàng nào. Tránh JSONDecodeError ("Expecting value").
+        if not r.content:
+            return None
+        return r.json()
+
     def _get(self, path: str, params: dict | None = None) -> Any:
         r = self._client.get(f"{self._base}{path}", headers=self._headers, params=params)
         r.raise_for_status()
-        return r.json()
+        return self._json_or_none(r)
 
     def _post(self, path: str, json: Any, prefer: str = "return=representation") -> Any:
         headers = {**self._headers, "Prefer": prefer}
         r = self._client.post(f"{self._base}{path}", headers=headers, json=json)
         r.raise_for_status()
-        return r.json()
+        return self._json_or_none(r)
 
     def _patch(self, path: str, json: Any, params: dict) -> Any:
         headers = {**self._headers, "Prefer": "return=representation"}
         r = self._client.patch(f"{self._base}{path}", headers=headers, params=params, json=json)
         r.raise_for_status()
-        return r.json()
+        return self._json_or_none(r)
 
     # --- products ---
     def list_products(self) -> list[dict]:
