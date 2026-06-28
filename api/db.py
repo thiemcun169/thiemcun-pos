@@ -4,6 +4,12 @@ Lớp kết nối dữ liệu (Data layer) — ĐỂ RIÊNG MỘT CHỖ.
 Nguyên tắc kiến trúc của khoá: mọi truy cập database đi qua đây.
 Sau muốn đổi nhà cung cấp (Supabase -> khác) chỉ sửa file này, KHÔNG đụng giao diện.
 
+ĐA CỬA HÀNG (multi-tenant) — đọc kỹ:
+  Backend dùng service_role -> BỎ QUA RLS. Vì vậy CÁCH LY GIỮA CÁC SHOP được ép
+  Ở ĐÂY: gần như mọi hàm nhận `shop_id` (cửa hàng đang hoạt động) và LUÔN lọc
+  theo nó. Route ở index.py chỉ truyền vào shop_id mà user thực sự là thành viên
+  (đã kiểm ở auth.py) -> không thể đọc/ghi nhầm dữ liệu shop khác.
+
 Hai backend:
   - SqliteDatabase  : chạy local + test (không cần Internet, không cần key).
   - SupabaseDatabase: chạy thật (Postgres của Supabase, qua REST PostgREST + service_role key).
@@ -15,9 +21,11 @@ Chọn backend tự động:
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import threading
+import uuid
 from typing import Any, Optional
 
 import httpx
@@ -25,73 +33,82 @@ import httpx
 from pricing import line_total, check_stock
 from seed_data import SEED_PRODUCTS, SEED_CUSTOMERS, SEED_ORDERS
 
+# Shop mặc định cho chế độ demo (không cấu hình Supabase) — id cố định để backend tham chiếu.
+DEMO_SHOP_ID = "demo-shop"
+DEMO_USER_ID = "demo-user"
+
+
+def _new_id() -> str:
+    return str(uuid.uuid4())
+
 
 # ---------------------------------------------------------------------------
 # Giao diện chung (interface) — phần còn lại của app chỉ biết tới các hàm này.
+# Hầu hết hàm dữ liệu nhận shop_id (cửa hàng đang hoạt động).
 # ---------------------------------------------------------------------------
 class Database:
     backend_name = "abstract"
 
+    # --- shops ---
+    def list_user_shops(self, user_id: Optional[str]) -> list[dict]: ...
+    def get_shop(self, shop_id: str) -> Optional[dict]: ...
+    def create_shop(self, name: str, user_id: Optional[str]) -> dict: ...
+    def update_shop(self, shop_id: str, data: dict) -> Optional[dict]: ...
+
+    # --- shop members / invites ---
+    def get_membership(self, shop_id: str, user_id: Optional[str]) -> Optional[dict]:
+        return None
+
+    def list_members(self, shop_id: str) -> list[dict]:
+        return []
+
+    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str] = None) -> dict: ...
+    def update_member(self, shop_id: str, member_id: str, data: dict) -> Optional[dict]: ...
+    def remove_member(self, shop_id: str, member_id: str) -> None: ...
+    def list_invites_for_email(self, email: str) -> list[dict]:
+        return []
+    def accept_invite(self, shop_id: str, user_id: str, email: str) -> Optional[dict]:
+        return None
+
     # --- products ---
-    def list_products(self) -> list[dict]: ...
-    def get_product(self, product_id: int) -> Optional[dict]: ...
-    def create_product(self, data: dict) -> dict: ...
-    def update_product(self, product_id: int, data: dict) -> Optional[dict]: ...
+    def list_products(self, shop_id: str) -> list[dict]: ...
+    def get_product(self, shop_id: str, product_id: int) -> Optional[dict]: ...
+    def create_product(self, shop_id: str, data: dict) -> dict: ...
+    def update_product(self, shop_id: str, product_id: int, data: dict) -> Optional[dict]: ...
+    def delete_product(self, shop_id: str, product_id: int) -> None: ...
 
     # --- customers ---
-    def list_customers(self) -> list[dict]: ...
-    def create_customer(self, data: dict) -> dict: ...
+    def list_customers(self, shop_id: str) -> list[dict]: ...
+    def get_customer(self, shop_id: str, customer_id: int) -> Optional[dict]: ...
+    def create_customer(self, shop_id: str, data: dict) -> dict: ...
 
     # --- orders ---
-    def list_orders(self, limit: int = 50) -> list[dict]: ...
-    def get_order(self, order_id: int) -> Optional[dict]: ...
-    def create_order(self, items: list[dict], customer_id: Optional[int], user_id: Optional[str]) -> dict: ...
+    def list_orders(self, shop_id: str, limit: int = 50) -> list[dict]: ...
+    def get_order(self, shop_id: str, order_id: int) -> Optional[dict]: ...
+    def create_order(self, shop_id: str, items: list[dict], customer_id: Optional[int], user_id: Optional[str]) -> dict: ...
 
     # --- reports ---
-    def report_summary(self) -> dict: ...
+    def report_summary(self, shop_id: str) -> dict: ...
 
-    # --- RBAC (profiles / allowlist / audit) — mặc định an toàn cho demo/test ---
-    def list_profiles(self) -> list[dict]:
+    # --- notifications (suy ra động: lời mời + tồn thấp) ---
+    def notifications(self, shop_id: str, email: Optional[str]) -> list[dict]:
         return []
 
-    def get_profile(self, user_id: str) -> Optional[dict]:
-        return None
+    # --- maintenance ---
+    def clear_shop_data(self, shop_id: str) -> None: ...
+    def reseed_shop(self, shop_id: str) -> None: ...
 
-    def update_profile(self, user_id: str, data: dict) -> Optional[dict]:
-        return None
-
-    def list_allowed_emails(self) -> list[dict]:
-        return []
-
-    def add_allowed_email(self, email: str, role: str, invited_by: Optional[str] = None) -> dict:
-        return {"email": email, "role": role}
-
-    def remove_allowed_email(self, email: str) -> None:
-        return None
-
-    def write_audit(self, actor_id: Optional[str], actor_email: Optional[str],
+    # --- audit (mặc định no-op cho demo/test) ---
+    def write_audit(self, shop_id: Optional[str], actor_id: Optional[str], actor_email: Optional[str],
                     action: str, target: Optional[str] = None, payload: Optional[dict] = None) -> None:
         return None
 
-    def list_audit(self, limit: int = 100) -> list[dict]:
+    def list_audit(self, shop_id: str, limit: int = 100) -> list[dict]:
         return []
-
-    # --- slice 1: product delete / customer detail / shop settings (defaults) ---
-    def delete_product(self, product_id: int) -> None:
-        return None
-
-    def get_customer(self, customer_id: int) -> Optional[dict]:
-        return None
-
-    def get_shop(self) -> dict:
-        return {"id": True, "name": "ThiemCun Shop", "address": None, "hotline": None, "logo_url": None}
-
-    def update_shop(self, data: dict) -> dict:
-        return self.get_shop()
 
 
 # ---------------------------------------------------------------------------
-# SQLite — dùng cho local dev & test. Dữ liệu mẫu được nạp sẵn.
+# SQLite — dùng cho local dev & test. Dữ liệu mẫu được nạp sẵn vào 1 shop demo.
 # ---------------------------------------------------------------------------
 class SqliteDatabase(Database):
     backend_name = "sqlite"
@@ -108,8 +125,32 @@ class SqliteDatabase(Database):
         with self._lock:
             self._conn.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS shops (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL DEFAULT 'Cửa hàng của tôi',
+                    slug TEXT UNIQUE,
+                    color_primary TEXT NOT NULL DEFAULT '#008060',
+                    color_secondary TEXT NOT NULL DEFAULT '#004c3f',
+                    logo_url TEXT, address TEXT, hotline TEXT,
+                    created_by TEXT,
+                    settings TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS shop_members (
+                    id TEXT PRIMARY KEY,
+                    shop_id TEXT NOT NULL,
+                    user_id TEXT,
+                    role TEXT NOT NULL DEFAULT 'staff',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    invited_email TEXT,
+                    invited_by TEXT,
+                    joined_at TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
                 CREATE TABLE IF NOT EXISTS products (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shop_id TEXT,
                     name TEXT NOT NULL,
                     sku TEXT,
                     category TEXT,
@@ -123,19 +164,14 @@ class SqliteDatabase(Database):
                 );
                 CREATE TABLE IF NOT EXISTS customers (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shop_id TEXT,
                     name TEXT NOT NULL,
                     phone TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
-                CREATE TABLE IF NOT EXISTS shop_settings (
-                    id INTEGER PRIMARY KEY CHECK (id = 1),
-                    name TEXT NOT NULL DEFAULT 'ThiemCun Shop',
-                    address TEXT, hotline TEXT, logo_url TEXT,
-                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                INSERT OR IGNORE INTO shop_settings (id, name) VALUES (1, 'ThiemCun Shop');
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shop_id TEXT,
                     customer_id INTEGER,
                     user_id TEXT,
                     total REAL NOT NULL DEFAULT 0,
@@ -157,87 +193,258 @@ class SqliteDatabase(Database):
 
     def _seed(self) -> None:
         with self._lock:
-            cur = self._conn.execute("SELECT COUNT(*) AS n FROM products")
+            cur = self._conn.execute("SELECT COUNT(*) AS n FROM shops")
             if cur.fetchone()["n"] > 0:
                 return
-            for p in SEED_PRODUCTS:
-                self._conn.execute(
-                    "INSERT INTO products (name, sku, category, price, stock) VALUES (?,?,?,?,?)",
-                    (p["name"], p["sku"], p["category"], p["price"], p["stock"]),
-                )
-            for c in SEED_CUSTOMERS:
-                self._conn.execute(
-                    "INSERT INTO customers (name, phone) VALUES (?,?)",
-                    (c["name"], c["phone"]),
-                )
+            # 1 shop demo + 1 owner demo
+            self._conn.execute(
+                "INSERT INTO shops (id, name, slug, created_by) VALUES (?,?,?,?)",
+                (DEMO_SHOP_ID, "ThiemCun Demo Shop", "thiemcun-demo", DEMO_USER_ID),
+            )
+            self._conn.execute(
+                "INSERT INTO shop_members (id, shop_id, user_id, role, status, joined_at)"
+                " VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)",
+                (_new_id(), DEMO_SHOP_ID, DEMO_USER_ID, "owner", "active"),
+            )
             self._conn.commit()
-        # Tạo vài đơn mẫu để báo cáo có số liệu ngay.
-        # GỌI NGOÀI lock vì create_order tự acquire lock (Lock không tái nhập).
+        self._seed_shop_contents(DEMO_SHOP_ID)
+
+    def _seed_shop_contents(self, shop_id: str) -> None:
+        """Nạp sản phẩm/khách/đơn mẫu cho 1 shop (dùng cho demo + nút 'reseed').
+
+        SEED_ORDERS dùng product_id/customer_id 1-based theo thứ tự seed; ta ánh xạ
+        sang ID THẬT vừa insert (an toàn cả khi reseed -> ID auto-increment đã nhảy)."""
+        prod_ids: list[int] = []
+        cust_ids: list[int] = []
+        with self._lock:
+            for p in SEED_PRODUCTS:
+                cur = self._conn.execute(
+                    "INSERT INTO products (shop_id, name, sku, category, price, stock) VALUES (?,?,?,?,?,?)",
+                    (shop_id, p["name"], p["sku"], p["category"], p["price"], p["stock"]),
+                )
+                prod_ids.append(cur.lastrowid)
+            for c in SEED_CUSTOMERS:
+                cur = self._conn.execute(
+                    "INSERT INTO customers (shop_id, name, phone) VALUES (?,?,?)",
+                    (shop_id, c["name"], c["phone"]),
+                )
+                cust_ids.append(cur.lastrowid)
+            self._conn.commit()
+        # Đơn mẫu — gọi NGOÀI lock vì create_order tự acquire lock.
         for o in SEED_ORDERS:
-            self.create_order(o["items"], o.get("customer_id"), user_id=None)
+            items = [{"product_id": prod_ids[it["product_id"] - 1], "qty": it["qty"]} for it in o["items"]]
+            cust = cust_ids[o["customer_id"] - 1] if o.get("customer_id") else None
+            self.create_order(shop_id, items, cust, user_id=None)
 
-    # --- products ---
-    _PROD_COLS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
+    # ---- shops ----
+    def _shop_row(self, row: sqlite3.Row) -> dict:
+        d = dict(row)
+        try:
+            d["settings"] = json.loads(d.get("settings") or "{}")
+        except (TypeError, ValueError):
+            d["settings"] = {}
+        return d
 
-    def list_products(self) -> list[dict]:
+    def list_user_shops(self, user_id: Optional[str]) -> list[dict]:
+        uid = user_id or DEMO_USER_ID
         with self._lock:
-            rows = self._conn.execute("SELECT * FROM products WHERE deleted_at IS NULL ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+            rows = self._conn.execute(
+                """SELECT s.*, m.role AS my_role FROM shops s
+                   JOIN shop_members m ON m.shop_id = s.id
+                   WHERE m.user_id = ? AND m.status = 'active' ORDER BY s.created_at""",
+                (uid,),
+            ).fetchall()
+        return [{**self._shop_row(r), "my_role": r["my_role"]} for r in rows]
 
-    def get_product(self, product_id: int) -> Optional[dict]:
+    def get_shop(self, shop_id: str) -> Optional[dict]:
         with self._lock:
-            row = self._conn.execute("SELECT * FROM products WHERE id=?", (product_id,)).fetchone()
+            row = self._conn.execute("SELECT * FROM shops WHERE id=?", (shop_id,)).fetchone()
+        return self._shop_row(row) if row else None
+
+    def create_shop(self, name: str, user_id: Optional[str]) -> dict:
+        sid = _new_id()
+        uid = user_id or DEMO_USER_ID
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO shops (id, name, created_by) VALUES (?,?,?)", (sid, name, uid)
+            )
+            self._conn.execute(
+                "INSERT INTO shop_members (id, shop_id, user_id, role, status, joined_at)"
+                " VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)",
+                (_new_id(), sid, uid, "owner", "active"),
+            )
+            self._conn.commit()
+        return self.get_shop(sid)
+
+    _SHOP_FIELDS = ("name", "color_primary", "color_secondary", "logo_url", "address", "hotline")
+
+    def update_shop(self, shop_id: str, data: dict) -> Optional[dict]:
+        cur = self.get_shop(shop_id)
+        if not cur:
+            return None
+        m = {**cur, **{k: v for k, v in data.items() if k in self._SHOP_FIELDS}}
+        with self._lock:
+            self._conn.execute(
+                "UPDATE shops SET name=?, color_primary=?, color_secondary=?, logo_url=?,"
+                " address=?, hotline=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (m.get("name") or "Cửa hàng của tôi", m.get("color_primary"), m.get("color_secondary"),
+                 m.get("logo_url"), m.get("address"), m.get("hotline"), shop_id),
+            )
+            self._conn.commit()
+        return self.get_shop(shop_id)
+
+    # ---- members / invites ----
+    def get_membership(self, shop_id: str, user_id: Optional[str]) -> Optional[dict]:
+        if not user_id:
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM shop_members WHERE shop_id=? AND user_id=? AND status='active'",
+                (shop_id, user_id),
+            ).fetchone()
         return dict(row) if row else None
 
-    def create_product(self, data: dict) -> dict:
+    def list_members(self, shop_id: str) -> list[dict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM shop_members WHERE shop_id=? ORDER BY created_at", (shop_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str] = None) -> dict:
+        email = email.lower()
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT * FROM shop_members WHERE shop_id=? AND lower(invited_email)=?", (shop_id, email)
+            ).fetchone()
+            if existing:
+                self._conn.execute("UPDATE shop_members SET role=? WHERE id=?", (role, existing["id"]))
+                self._conn.commit()
+                row = self._conn.execute("SELECT * FROM shop_members WHERE id=?", (existing["id"],)).fetchone()
+                return dict(row)
+            mid = _new_id()
+            self._conn.execute(
+                "INSERT INTO shop_members (id, shop_id, role, status, invited_email, invited_by)"
+                " VALUES (?,?,?,?,?,?)",
+                (mid, shop_id, role, "pending", email, invited_by),
+            )
+            self._conn.commit()
+            row = self._conn.execute("SELECT * FROM shop_members WHERE id=?", (mid,)).fetchone()
+        return dict(row)
+
+    def update_member(self, shop_id: str, member_id: str, data: dict) -> Optional[dict]:
+        allowed = {k: v for k, v in data.items() if k in ("role", "status")}
+        if not allowed:
+            return None
+        sets = ", ".join(f"{k}=?" for k in allowed)
+        with self._lock:
+            self._conn.execute(
+                f"UPDATE shop_members SET {sets} WHERE id=? AND shop_id=?",
+                (*allowed.values(), member_id, shop_id),
+            )
+            self._conn.commit()
+            row = self._conn.execute(
+                "SELECT * FROM shop_members WHERE id=? AND shop_id=?", (member_id, shop_id)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def remove_member(self, shop_id: str, member_id: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM shop_members WHERE id=? AND shop_id=?", (member_id, shop_id))
+            self._conn.commit()
+
+    def list_invites_for_email(self, email: str) -> list[dict]:
+        with self._lock:
+            rows = self._conn.execute(
+                """SELECT m.*, s.name AS shop_name FROM shop_members m JOIN shops s ON s.id=m.shop_id
+                   WHERE m.status='pending' AND m.user_id IS NULL AND lower(m.invited_email)=?""",
+                (email.lower(),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def accept_invite(self, shop_id: str, user_id: str, email: str) -> Optional[dict]:
+        with self._lock:
+            self._conn.execute(
+                """UPDATE shop_members SET user_id=?, status='active', joined_at=CURRENT_TIMESTAMP
+                   WHERE shop_id=? AND user_id IS NULL AND status='pending' AND lower(invited_email)=?""",
+                (user_id, shop_id, email.lower()),
+            )
+            self._conn.commit()
+        return self.get_membership(shop_id, user_id)
+
+    # --- products (luôn lọc theo shop_id) ---
+    _PROD_COLS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
+
+    def list_products(self, shop_id: str) -> list[dict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM products WHERE shop_id=? AND deleted_at IS NULL ORDER BY id", (shop_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_product(self, shop_id: str, product_id: int) -> Optional[dict]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM products WHERE id=? AND shop_id=?", (product_id, shop_id)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def create_product(self, shop_id: str, data: dict) -> dict:
         with self._lock:
             cur = self._conn.execute(
-                "INSERT INTO products (name, sku, category, price, stock, image_url, description, low_stock_threshold)"
-                " VALUES (?,?,?,?,?,?,?,?)",
-                (data["name"], data.get("sku"), data.get("category"), data["price"], data.get("stock", 0),
+                "INSERT INTO products (shop_id, name, sku, category, price, stock, image_url, description, low_stock_threshold)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (shop_id, data["name"], data.get("sku"), data.get("category"), data["price"], data.get("stock", 0),
                  data.get("image_url"), data.get("description"), data.get("low_stock_threshold", 5)),
             )
             self._conn.commit()
             new_id = cur.lastrowid
-        return self.get_product(new_id)
+        return self.get_product(shop_id, new_id)
 
-    def update_product(self, product_id: int, data: dict) -> Optional[dict]:
-        existing = self.get_product(product_id)
+    def update_product(self, shop_id: str, product_id: int, data: dict) -> Optional[dict]:
+        existing = self.get_product(shop_id, product_id)
         if not existing:
             return None
         merged = {**existing, **data}
         with self._lock:
             self._conn.execute(
                 "UPDATE products SET name=?, sku=?, category=?, price=?, stock=?, image_url=?, description=?,"
-                " low_stock_threshold=? WHERE id=?",
+                " low_stock_threshold=? WHERE id=? AND shop_id=?",
                 (merged["name"], merged.get("sku"), merged.get("category"), merged["price"], merged["stock"],
-                 merged.get("image_url"), merged.get("description"), merged.get("low_stock_threshold", 5), product_id),
+                 merged.get("image_url"), merged.get("description"), merged.get("low_stock_threshold", 5),
+                 product_id, shop_id),
             )
             self._conn.commit()
-        return self.get_product(product_id)
+        return self.get_product(shop_id, product_id)
 
-    def delete_product(self, product_id: int) -> None:
+    def delete_product(self, shop_id: str, product_id: int) -> None:
         with self._lock:
-            self._conn.execute("UPDATE products SET deleted_at=CURRENT_TIMESTAMP WHERE id=?", (product_id,))
+            self._conn.execute(
+                "UPDATE products SET deleted_at=CURRENT_TIMESTAMP WHERE id=? AND shop_id=?", (product_id, shop_id)
+            )
             self._conn.commit()
 
     # --- customers ---
-    def list_customers(self) -> list[dict]:
+    def list_customers(self, shop_id: str) -> list[dict]:
         with self._lock:
             rows = self._conn.execute(
                 """SELECT c.*, COUNT(o.id) AS purchase_count, COALESCE(SUM(o.total),0) AS total_spent
                    FROM customers c LEFT JOIN orders o ON o.customer_id=c.id
-                   GROUP BY c.id ORDER BY c.id"""
+                   WHERE c.shop_id=? GROUP BY c.id ORDER BY c.id""",
+                (shop_id,),
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_customer(self, customer_id: int) -> Optional[dict]:
+    def get_customer(self, shop_id: str, customer_id: int) -> Optional[dict]:
         with self._lock:
-            c = self._conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+            c = self._conn.execute(
+                "SELECT * FROM customers WHERE id=? AND shop_id=?", (customer_id, shop_id)
+            ).fetchone()
             if not c:
                 return None
             orders = self._conn.execute(
-                "SELECT id, total, status, created_at FROM orders WHERE customer_id=? ORDER BY id DESC", (customer_id,)
+                "SELECT id, total, status, created_at FROM orders WHERE customer_id=? AND shop_id=? ORDER BY id DESC",
+                (customer_id, shop_id),
             ).fetchall()
         d = dict(c)
         d["orders"] = [dict(o) for o in orders]
@@ -245,28 +452,11 @@ class SqliteDatabase(Database):
         d["total_spent"] = sum(float(o["total"]) for o in d["orders"])
         return d
 
-    # --- shop settings ---
-    def get_shop(self) -> dict:
-        with self._lock:
-            row = self._conn.execute("SELECT * FROM shop_settings WHERE id=1").fetchone()
-        return dict(row) if row else {"id": 1, "name": "ThiemCun Shop"}
-
-    def update_shop(self, data: dict) -> dict:
-        cur = self.get_shop()
-        m = {**cur, **data}
-        with self._lock:
-            self._conn.execute(
-                "UPDATE shop_settings SET name=?, address=?, hotline=?, logo_url=?, updated_at=CURRENT_TIMESTAMP WHERE id=1",
-                (m.get("name") or "ThiemCun Shop", m.get("address"), m.get("hotline"), m.get("logo_url")),
-            )
-            self._conn.commit()
-        return self.get_shop()
-
-    def create_customer(self, data: dict) -> dict:
+    def create_customer(self, shop_id: str, data: dict) -> dict:
         with self._lock:
             cur = self._conn.execute(
-                "INSERT INTO customers (name, phone) VALUES (?,?)",
-                (data["name"], data.get("phone")),
+                "INSERT INTO customers (shop_id, name, phone) VALUES (?,?,?)",
+                (shop_id, data["name"], data.get("phone")),
             )
             self._conn.commit()
             new_id = cur.lastrowid
@@ -274,10 +464,10 @@ class SqliteDatabase(Database):
         return dict(row)
 
     # --- orders ---
-    def list_orders(self, limit: int = 50) -> list[dict]:
+    def list_orders(self, shop_id: str, limit: int = 50) -> list[dict]:
         with self._lock:
             orders = self._conn.execute(
-                "SELECT * FROM orders ORDER BY id DESC LIMIT ?", (limit,)
+                "SELECT * FROM orders WHERE shop_id=? ORDER BY id DESC LIMIT ?", (shop_id, limit)
             ).fetchall()
             result = []
             for o in orders:
@@ -289,9 +479,11 @@ class SqliteDatabase(Database):
                 result.append(d)
         return result
 
-    def get_order(self, order_id: int) -> Optional[dict]:
+    def get_order(self, shop_id: str, order_id: int) -> Optional[dict]:
         with self._lock:
-            o = self._conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+            o = self._conn.execute(
+                "SELECT * FROM orders WHERE id=? AND shop_id=?", (order_id, shop_id)
+            ).fetchone()
             if not o:
                 return None
             items = self._conn.execute(
@@ -301,14 +493,13 @@ class SqliteDatabase(Database):
         d["items"] = [dict(i) for i in items]
         return d
 
-    def create_order(self, items: list[dict], customer_id: Optional[int], user_id: Optional[str]) -> dict:
-        # Logic nghiệp vụ (tính tiền + trừ tồn kho) nằm ở orders.py — đây chỉ ghi DB.
+    def create_order(self, shop_id: str, items: list[dict], customer_id: Optional[int], user_id: Optional[str]) -> dict:
         with self._lock:
             total = 0.0
             resolved = []
             for it in items:
                 prod = self._conn.execute(
-                    "SELECT * FROM products WHERE id=?", (it["product_id"],)
+                    "SELECT * FROM products WHERE id=? AND shop_id=?", (it["product_id"], shop_id)
                 ).fetchone()
                 if prod is None:
                     raise ValueError(f"Sản phẩm id={it['product_id']} không tồn tại")
@@ -320,8 +511,8 @@ class SqliteDatabase(Database):
                 resolved.append((prod, qty, unit_price, lt))
 
             cur = self._conn.execute(
-                "INSERT INTO orders (customer_id, user_id, total, status) VALUES (?,?,?, 'paid')",
-                (customer_id, user_id, total),
+                "INSERT INTO orders (shop_id, customer_id, user_id, total, status) VALUES (?,?,?,?, 'paid')",
+                (shop_id, customer_id, user_id, total),
             )
             order_id = cur.lastrowid
             for prod, qty, unit_price, lt in resolved:
@@ -330,35 +521,70 @@ class SqliteDatabase(Database):
                     " VALUES (?,?,?,?,?,?)",
                     (order_id, prod["id"], prod["name"], qty, unit_price, lt),
                 )
-                # Trừ tồn kho
                 self._conn.execute(
                     "UPDATE products SET stock = stock - ? WHERE id=?", (qty, prod["id"])
                 )
             self._conn.commit()
-        return self.get_order(order_id)
+        return self.get_order(shop_id, order_id)
 
     # --- reports ---
-    def report_summary(self) -> dict:
+    def report_summary(self, shop_id: str) -> dict:
         with self._lock:
-            revenue = self._conn.execute("SELECT COALESCE(SUM(total),0) AS s FROM orders").fetchone()["s"]
-            order_count = self._conn.execute("SELECT COUNT(*) AS n FROM orders").fetchone()["n"]
-            product_count = self._conn.execute("SELECT COUNT(*) AS n FROM products").fetchone()["n"]
+            revenue = self._conn.execute(
+                "SELECT COALESCE(SUM(total),0) AS s FROM orders WHERE shop_id=?", (shop_id,)
+            ).fetchone()["s"]
+            order_count = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM orders WHERE shop_id=?", (shop_id,)
+            ).fetchone()["n"]
+            product_count = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM products WHERE shop_id=? AND deleted_at IS NULL", (shop_id,)
+            ).fetchone()["n"]
             low_stock = self._conn.execute(
-                "SELECT id, name, stock FROM products WHERE stock <= 5 ORDER BY stock ASC"
+                "SELECT id, name, stock FROM products WHERE shop_id=? AND deleted_at IS NULL AND stock <= low_stock_threshold ORDER BY stock ASC",
+                (shop_id,),
             ).fetchall()
             top = self._conn.execute(
-                """
-                SELECT product_name, SUM(qty) AS qty_sold, SUM(line_total) AS revenue
-                FROM order_items GROUP BY product_name ORDER BY qty_sold DESC LIMIT 5
-                """
+                """SELECT oi.product_name, SUM(oi.qty) AS qty_sold, SUM(oi.line_total) AS revenue
+                   FROM order_items oi JOIN orders o ON o.id=oi.order_id
+                   WHERE o.shop_id=? GROUP BY oi.product_name ORDER BY qty_sold DESC LIMIT 5""",
+                (shop_id,),
             ).fetchall()
         return {
-            "revenue": revenue,
-            "order_count": order_count,
-            "product_count": product_count,
-            "low_stock": [dict(r) for r in low_stock],
-            "top_products": [dict(r) for r in top],
+            "revenue": revenue, "order_count": order_count, "product_count": product_count,
+            "low_stock": [dict(r) for r in low_stock], "top_products": [dict(r) for r in top],
         }
+
+    # --- notifications ---
+    def notifications(self, shop_id: str, email: Optional[str]) -> list[dict]:
+        out: list[dict] = []
+        if email:
+            for inv in self.list_invites_for_email(email):
+                out.append({
+                    "type": "invite", "shop_id": inv["shop_id"],
+                    "title": f"Lời mời vào {inv.get('shop_name') or 'cửa hàng'}",
+                    "body": f"Bạn được mời làm {inv.get('role')}.", "role": inv.get("role"),
+                })
+        for p in self.report_summary(shop_id)["low_stock"]:
+            out.append({
+                "type": "low_stock", "title": f"Sắp hết: {p['name']}",
+                "body": f"Còn {p['stock']} trong kho.",
+            })
+        return out
+
+    # --- maintenance ---
+    def clear_shop_data(self, shop_id: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE shop_id=?)", (shop_id,)
+            )
+            self._conn.execute("DELETE FROM orders WHERE shop_id=?", (shop_id,))
+            self._conn.execute("DELETE FROM products WHERE shop_id=?", (shop_id,))
+            self._conn.execute("DELETE FROM customers WHERE shop_id=?", (shop_id,))
+            self._conn.commit()
+
+    def reseed_shop(self, shop_id: str) -> None:
+        self.clear_shop_data(shop_id)
+        self._seed_shop_contents(shop_id)
 
 
 # ---------------------------------------------------------------------------
@@ -374,13 +600,10 @@ class SupabaseDatabase(Database):
             "Authorization": f"Bearer {service_key}",
             "Content-Type": "application/json",
         }
-        # timeout ngắn để serverless không treo.
         self._client = httpx.Client(timeout=15.0)
 
     @staticmethod
     def _json_or_none(r: "httpx.Response") -> Any:
-        # PostgREST trả body RỖNG khi Prefer=return=minimal (201/204) hoặc khi
-        # PATCH/DELETE không khớp hàng nào. Tránh JSONDecodeError ("Expecting value").
         if not r.content:
             return None
         return r.json()
@@ -402,75 +625,171 @@ class SupabaseDatabase(Database):
         r.raise_for_status()
         return self._json_or_none(r)
 
-    # --- products ---
-    _PROD_FIELDS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
+    def _delete(self, path: str, params: dict) -> None:
+        r = self._client.delete(f"{self._base}{path}", headers=self._headers, params=params)
+        r.raise_for_status()
 
-    def list_products(self) -> list[dict]:
-        return self._get("/products", {"select": "*", "deleted_at": "is.null", "order": "id"})
+    # ---- shops ----
+    def list_user_shops(self, user_id: Optional[str]) -> list[dict]:
+        if not user_id:
+            return []
+        rows = self._get("/shop_members", {
+            "user_id": f"eq.{user_id}", "status": "eq.active",
+            "select": "role,shop:shops(*)", "order": "created_at",
+        }) or []
+        out = []
+        for r in rows:
+            shop = r.get("shop")
+            if shop:
+                out.append({**shop, "my_role": r.get("role")})
+        return out
 
-    def get_product(self, product_id: int) -> Optional[dict]:
-        rows = self._get("/products", {"id": f"eq.{product_id}", "select": "*"})
+    def get_shop(self, shop_id: str) -> Optional[dict]:
+        rows = self._get("/shops", {"id": f"eq.{shop_id}", "select": "*"})
         return rows[0] if rows else None
 
-    def create_product(self, data: dict) -> dict:
+    def create_shop(self, name: str, user_id: Optional[str]) -> dict:
+        rows = self._post("/shops", {"name": name, "created_by": user_id})
+        shop = rows[0]
+        self._post("/shop_members", {
+            "shop_id": shop["id"], "user_id": user_id, "role": "owner",
+            "status": "active", "joined_at": "now()",
+        }, prefer="return=minimal")
+        return shop
+
+    _SHOP_FIELDS = ("name", "color_primary", "color_secondary", "logo_url", "address", "hotline")
+
+    def update_shop(self, shop_id: str, data: dict) -> Optional[dict]:
+        clean = {k: data[k] for k in self._SHOP_FIELDS if k in data}
+        if not clean:
+            return self.get_shop(shop_id)
+        rows = self._patch("/shops", clean, {"id": f"eq.{shop_id}"})
+        return rows[0] if rows else self.get_shop(shop_id)
+
+    # ---- members / invites ----
+    def get_membership(self, shop_id: str, user_id: Optional[str]) -> Optional[dict]:
+        if not user_id:
+            return None
+        rows = self._get("/shop_members", {
+            "shop_id": f"eq.{shop_id}", "user_id": f"eq.{user_id}", "status": "eq.active", "select": "*",
+        })
+        return rows[0] if rows else None
+
+    def list_members(self, shop_id: str) -> list[dict]:
+        members = self._get("/shop_members", {"shop_id": f"eq.{shop_id}", "select": "*", "order": "created_at"}) or []
+        # Bổ sung email/tên từ profiles cho các thành viên đã có tài khoản.
+        uids = [m["user_id"] for m in members if m.get("user_id")]
+        prof_by_id: dict[str, dict] = {}
+        if uids:
+            ids = ",".join(uids)
+            profs = self._get("/profiles", {"id": f"in.({ids})", "select": "id,email,full_name"}) or []
+            prof_by_id = {p["id"]: p for p in profs}
+        for m in members:
+            p = prof_by_id.get(m.get("user_id"))
+            m["email"] = (p or {}).get("email") or m.get("invited_email")
+            m["full_name"] = (p or {}).get("full_name")
+        return members
+
+    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str] = None) -> dict:
+        email = email.lower()
+        headers = {**self._headers, "Prefer": "resolution=merge-duplicates,return=representation"}
+        r = self._client.post(
+            f"{self._base}/shop_members", headers=headers,
+            params={"on_conflict": "shop_id,invited_email"},
+            json={"shop_id": shop_id, "invited_email": email, "role": role,
+                  "status": "pending", "invited_by": invited_by},
+        )
+        # merge-duplicates cần unique trên (shop_id, invited_email); nếu xung đột vẫn trả ok.
+        if r.status_code >= 400:
+            # đã có lời mời -> cập nhật role
+            self._patch("/shop_members", {"role": role},
+                        {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email}"})
+            rows = self._get("/shop_members", {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email}", "select": "*"})
+            return rows[0] if rows else {"shop_id": shop_id, "invited_email": email, "role": role}
+        rows = self._json_or_none(r)
+        return rows[0] if rows else {"shop_id": shop_id, "invited_email": email, "role": role}
+
+    def update_member(self, shop_id: str, member_id: str, data: dict) -> Optional[dict]:
+        clean = {k: v for k, v in data.items() if k in ("role", "status")}
+        if not clean:
+            return None
+        rows = self._patch("/shop_members", clean, {"id": f"eq.{member_id}", "shop_id": f"eq.{shop_id}"})
+        return rows[0] if rows else None
+
+    def remove_member(self, shop_id: str, member_id: str) -> None:
+        self._delete("/shop_members", {"id": f"eq.{member_id}", "shop_id": f"eq.{shop_id}"})
+
+    def list_invites_for_email(self, email: str) -> list[dict]:
+        rows = self._get("/shop_members", {
+            "invited_email": f"eq.{email.lower()}", "status": "eq.pending", "user_id": "is.null",
+            "select": "*,shop:shops(name)",
+        }) or []
+        for r in rows:
+            r["shop_name"] = (r.get("shop") or {}).get("name")
+        return rows
+
+    def accept_invite(self, shop_id: str, user_id: str, email: str) -> Optional[dict]:
+        self._patch("/shop_members",
+                    {"user_id": user_id, "status": "active", "joined_at": "now()"},
+                    {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email.lower()}",
+                     "user_id": "is.null", "status": "eq.pending"})
+        return self.get_membership(shop_id, user_id)
+
+    # --- products (lọc shop_id) ---
+    _PROD_FIELDS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
+
+    def list_products(self, shop_id: str) -> list[dict]:
+        return self._get("/products", {"select": "*", "shop_id": f"eq.{shop_id}", "deleted_at": "is.null", "order": "id"})
+
+    def get_product(self, shop_id: str, product_id: int) -> Optional[dict]:
+        rows = self._get("/products", {"id": f"eq.{product_id}", "shop_id": f"eq.{shop_id}", "select": "*"})
+        return rows[0] if rows else None
+
+    def create_product(self, shop_id: str, data: dict) -> dict:
         payload = {k: data[k] for k in self._PROD_FIELDS if k in data}
-        payload["name"] = data["name"]; payload["price"] = data["price"]
+        payload["name"] = data["name"]; payload["price"] = data["price"]; payload["shop_id"] = shop_id
         rows = self._post("/products", payload)
         return rows[0]
 
-    def update_product(self, product_id: int, data: dict) -> Optional[dict]:
+    def update_product(self, shop_id: str, product_id: int, data: dict) -> Optional[dict]:
         clean = {k: v for k, v in data.items() if k in self._PROD_FIELDS}
-        rows = self._patch("/products", clean, {"id": f"eq.{product_id}"})
+        rows = self._patch("/products", clean, {"id": f"eq.{product_id}", "shop_id": f"eq.{shop_id}"})
         return rows[0] if rows else None
 
-    def delete_product(self, product_id: int) -> None:
-        # soft delete
-        self._patch("/products", {"deleted_at": "now()"}, {"id": f"eq.{product_id}"})
+    def delete_product(self, shop_id: str, product_id: int) -> None:
+        self._patch("/products", {"deleted_at": "now()"}, {"id": f"eq.{product_id}", "shop_id": f"eq.{shop_id}"})
 
     # --- customers ---
-    def list_customers(self) -> list[dict]:
-        # customer_stats view = customers + purchase_count + total_spent
-        return self._get("/customer_stats", {"select": "*", "order": "id"})
+    def list_customers(self, shop_id: str) -> list[dict]:
+        return self._get("/customer_stats", {"select": "*", "shop_id": f"eq.{shop_id}", "order": "id"})
 
-    def get_customer(self, customer_id: int) -> Optional[dict]:
-        rows = self._get("/customer_stats", {"id": f"eq.{customer_id}", "select": "*"})
+    def get_customer(self, shop_id: str, customer_id: int) -> Optional[dict]:
+        rows = self._get("/customer_stats", {"id": f"eq.{customer_id}", "shop_id": f"eq.{shop_id}", "select": "*"})
         if not rows:
             return None
         c = rows[0]
-        c["orders"] = self._get("/orders", {"customer_id": f"eq.{customer_id}",
+        c["orders"] = self._get("/orders", {"customer_id": f"eq.{customer_id}", "shop_id": f"eq.{shop_id}",
                                             "select": "id,total,status,created_at", "order": "id.desc"})
         return c
 
-    def create_customer(self, data: dict) -> dict:
-        rows = self._post("/customers", {"name": data["name"], "phone": data.get("phone")})
+    def create_customer(self, shop_id: str, data: dict) -> dict:
+        rows = self._post("/customers", {"shop_id": shop_id, "name": data["name"], "phone": data.get("phone")})
         return rows[0]
 
-    # --- shop settings ---
-    def get_shop(self) -> dict:
-        rows = self._get("/shop_settings", {"select": "*", "limit": "1"})
-        return rows[0] if rows else {"name": "ThiemCun Shop"}
-
-    def update_shop(self, data: dict) -> dict:
-        clean = {k: data[k] for k in ("name", "address", "hotline", "logo_url") if k in data}
-        rows = self._patch("/shop_settings", clean, {"id": "eq.true"})
-        return rows[0] if rows else self.get_shop()
-
     # --- orders ---
-    def list_orders(self, limit: int = 50) -> list[dict]:
-        return self._get("/orders", {
-            "select": "*,order_items(*)", "order": "id.desc", "limit": str(limit),
-        })
+    def list_orders(self, shop_id: str, limit: int = 50) -> list[dict]:
+        return self._get("/orders", {"select": "*,order_items(*)", "shop_id": f"eq.{shop_id}",
+                                     "order": "id.desc", "limit": str(limit)})
 
-    def get_order(self, order_id: int) -> Optional[dict]:
-        rows = self._get("/orders", {"id": f"eq.{order_id}", "select": "*,order_items(*)"})
+    def get_order(self, shop_id: str, order_id: int) -> Optional[dict]:
+        rows = self._get("/orders", {"id": f"eq.{order_id}", "shop_id": f"eq.{shop_id}", "select": "*,order_items(*)"})
         return rows[0] if rows else None
 
-    def create_order(self, items: list[dict], customer_id: Optional[int], user_id: Optional[str]) -> dict:
-        # Tính tiền + kiểm tồn kho ở backend, sau đó ghi qua PostgREST.
+    def create_order(self, shop_id: str, items: list[dict], customer_id: Optional[int], user_id: Optional[str]) -> dict:
         total = 0.0
         resolved = []
         for it in items:
-            prod = self.get_product(it["product_id"])
+            prod = self.get_product(shop_id, it["product_id"])
             if prod is None:
                 raise ValueError(f"Sản phẩm id={it['product_id']} không tồn tại")
             qty = int(it["qty"])
@@ -481,7 +800,7 @@ class SupabaseDatabase(Database):
             resolved.append((prod, qty, unit_price, lt))
 
         order_rows = self._post("/orders", {
-            "customer_id": customer_id, "user_id": user_id, "total": total, "status": "paid",
+            "shop_id": shop_id, "customer_id": customer_id, "user_id": user_id, "total": total, "status": "paid",
         })
         order = order_rows[0]
         item_payload = [{
@@ -489,16 +808,18 @@ class SupabaseDatabase(Database):
             "qty": qty, "unit_price": unit_price, "line_total": lt,
         } for (prod, qty, unit_price, lt) in resolved]
         self._post("/order_items", item_payload, prefer="return=minimal")
-        # Trừ tồn kho từng sản phẩm.
         for (prod, qty, _, _) in resolved:
             self._patch("/products", {"stock": prod["stock"] - qty}, {"id": f"eq.{prod['id']}"})
-        return self.get_order(order["id"])
+        return self.get_order(shop_id, order["id"])
 
     # --- reports ---
-    def report_summary(self) -> dict:
-        products = self.list_products()
-        orders = self._get("/orders", {"select": "total"})
-        items = self._get("/order_items", {"select": "product_name,qty,line_total"})
+    def report_summary(self, shop_id: str) -> dict:
+        products = self.list_products(shop_id)
+        orders = self._get("/orders", {"select": "total", "shop_id": f"eq.{shop_id}"})
+        items = self._get("/order_items", {
+            "select": "product_name,qty,line_total,orders!inner(shop_id)",
+            "orders.shop_id": f"eq.{shop_id}",
+        }) or []
         revenue = sum(float(o["total"]) for o in orders)
         agg: dict[str, dict] = {}
         for it in items:
@@ -508,56 +829,57 @@ class SupabaseDatabase(Database):
         top = sorted(agg.values(), key=lambda x: x["qty_sold"], reverse=True)[:5]
         low_stock = [
             {"id": p["id"], "name": p["name"], "stock": p["stock"]}
-            for p in sorted(products, key=lambda x: x["stock"]) if p["stock"] <= 5
+            for p in sorted(products, key=lambda x: x["stock"])
+            if p["stock"] <= p.get("low_stock_threshold", 5)
         ]
         return {
-            "revenue": revenue,
-            "order_count": len(orders),
-            "product_count": len(products),
-            "low_stock": low_stock,
-            "top_products": top,
+            "revenue": revenue, "order_count": len(orders), "product_count": len(products),
+            "low_stock": low_stock, "top_products": top,
         }
 
-    # --- RBAC: profiles / allowlist / audit (qua service_role, bỏ qua RLS) ---
-    def list_profiles(self) -> list[dict]:
-        return self._get("/profiles", {"select": "*", "order": "created_at"})
+    # --- notifications ---
+    def notifications(self, shop_id: str, email: Optional[str]) -> list[dict]:
+        out: list[dict] = []
+        if email:
+            for inv in self.list_invites_for_email(email):
+                out.append({
+                    "type": "invite", "shop_id": inv["shop_id"],
+                    "title": f"Lời mời vào {inv.get('shop_name') or 'cửa hàng'}",
+                    "body": f"Bạn được mời làm {inv.get('role')}.", "role": inv.get("role"),
+                })
+        for p in self.report_summary(shop_id)["low_stock"]:
+            out.append({"type": "low_stock", "title": f"Sắp hết: {p['name']}", "body": f"Còn {p['stock']} trong kho."})
+        return out
 
-    def get_profile(self, user_id: str) -> Optional[dict]:
-        rows = self._get("/profiles", {"id": f"eq.{user_id}", "select": "*"})
-        return rows[0] if rows else None
+    # --- maintenance ---
+    def clear_shop_data(self, shop_id: str) -> None:
+        # Xoá order_items qua FK cascade khi xoá orders; nhưng order_items không có shop_id
+        # -> xoá orders trước (PostgREST cascade theo FK order_items.order_id ON DELETE CASCADE).
+        self._delete("/orders", {"shop_id": f"eq.{shop_id}"})
+        self._delete("/customers", {"shop_id": f"eq.{shop_id}"})
+        self._delete("/products", {"shop_id": f"eq.{shop_id}"})
 
-    def update_profile(self, user_id: str, data: dict) -> Optional[dict]:
-        rows = self._patch("/profiles", data, {"id": f"eq.{user_id}"})
-        return rows[0] if rows else None
+    def reseed_shop(self, shop_id: str) -> None:
+        self.clear_shop_data(shop_id)
+        prods = [{**{k: p[k] for k in ("name", "sku", "category", "price", "stock")}, "shop_id": shop_id}
+                 for p in SEED_PRODUCTS]
+        self._post("/products", prods, prefer="return=minimal")
+        custs = [{"shop_id": shop_id, "name": c["name"], "phone": c["phone"]} for c in SEED_CUSTOMERS]
+        self._post("/customers", custs, prefer="return=minimal")
 
-    def list_allowed_emails(self) -> list[dict]:
-        return self._get("/allowed_emails", {"select": "*", "order": "created_at.desc"})
-
-    def add_allowed_email(self, email: str, role: str, invited_by: Optional[str] = None) -> dict:
-        # upsert: nếu email đã có thì cập nhật role
-        headers = {**self._headers, "Prefer": "resolution=merge-duplicates,return=representation"}
-        r = self._client.post(f"{self._base}/allowed_emails", headers=headers,
-                              json={"email": email.lower(), "role": role, "invited_by": invited_by})
-        r.raise_for_status()
-        rows = self._json_or_none(r)
-        return rows[0] if rows else {"email": email, "role": role}
-
-    def remove_allowed_email(self, email: str) -> None:
-        r = self._client.delete(f"{self._base}/allowed_emails",
-                               headers=self._headers, params={"email": f"eq.{email.lower()}"})
-        r.raise_for_status()
-
-    def write_audit(self, actor_id, actor_email, action, target=None, payload=None) -> None:
+    # --- audit (qua service_role, bỏ qua RLS) ---
+    def write_audit(self, shop_id, actor_id, actor_email, action, target=None, payload=None) -> None:
         try:
             self._post("/audit_logs", {
-                "actor_id": actor_id, "actor_email": actor_email,
+                "shop_id": shop_id, "actor_id": actor_id, "actor_email": actor_email,
                 "action": action, "target": target, "payload": payload,
             }, prefer="return=minimal")
         except Exception:
             pass  # audit không được làm gãy luồng chính
 
-    def list_audit(self, limit: int = 100) -> list[dict]:
-        return self._get("/audit_logs", {"select": "*", "order": "created_at.desc", "limit": str(limit)})
+    def list_audit(self, shop_id: str, limit: int = 100) -> list[dict]:
+        return self._get("/audit_logs", {"select": "*", "shop_id": f"eq.{shop_id}",
+                                         "order": "created_at.desc", "limit": str(limit)})
 
 
 # ---------------------------------------------------------------------------
@@ -576,7 +898,6 @@ def get_db() -> Database:
     if url and service_key:
         _db_singleton = SupabaseDatabase(url, service_key)
     else:
-        # Local/test: SQLite. SQLITE_PATH=file để giữ dữ liệu, mặc định in-memory.
         _db_singleton = SqliteDatabase(os.environ.get("SQLITE_PATH", ":memory:"))
     return _db_singleton
 

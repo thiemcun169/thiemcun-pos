@@ -1,16 +1,20 @@
 """
-Auth + phân quyền (RBAC) — kiểm "vé" đăng nhập (JWT) Supabase + nạp hồ sơ (role/status).
+Auth + phân quyền theo CỬA HÀNG (multi-tenant RBAC).
 
 Luồng:
-  Người dùng đăng nhập (email/mật khẩu HOẶC Google) -> Supabase cấp JWT ->
-  frontend gửi `Authorization: Bearer <jwt>` -> backend:
+  Người dùng đăng nhập (email/mật khẩu · Google · magic link) -> Supabase cấp JWT ->
+  frontend gửi:
+    Authorization: Bearer <jwt>      (ai đang đăng nhập)
+    X-Shop-Id: <uuid>                (đang làm việc với cửa hàng nào)
+  backend:
     1. xác thực token qua /auth/v1/user (hợp mọi thuật toán ký, kể cả ES256),
-    2. nạp profile (role owner|staff, status, must_change_password) từ bảng profiles
-       qua service_role (bỏ qua RLS) — để biết quyền của user.
+    2. tra THÀNH VIÊN: user này thuộc shop X với vai trò gì (owner|staff)?
+       -> vai trò KHÔNG còn lấy từ profiles.role, mà từ bảng shop_members.
 
 Quy ước:
-  - Token TUỲ CHỌN ở route công khai (catalog). Route nhạy cảm dùng require_user / require_owner.
-  - user bị 'disabled' -> 403 (khoá truy cập).
+  - Demo (chưa cấu hình Supabase): coi như owner của 1 shop demo cố định.
+  - require_shop : bắt buộc đăng nhập + là thành viên active của shop đang chọn.
+  - require_owner: thêm điều kiện vai trò owner trong shop đó.
 """
 
 from __future__ import annotations
@@ -21,6 +25,8 @@ from typing import Optional
 import httpx
 from fastapi import Depends, Header, HTTPException
 
+from db import get_db, DEMO_SHOP_ID, DEMO_USER_ID
+
 
 def _supabase_url() -> Optional[str]:
     return os.environ.get("SUPABASE_URL")
@@ -28,10 +34,6 @@ def _supabase_url() -> Optional[str]:
 
 def _anon_key() -> Optional[str]:
     return os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
-
-
-def _service_key() -> Optional[str]:
-    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 
 def auth_enabled() -> bool:
@@ -56,72 +58,85 @@ def _verify_token(token: str) -> dict:
     raise HTTPException(status_code=401, detail="Vé đăng nhập không hợp lệ hoặc đã hết hạn")
 
 
-def _fetch_profile(user_id: str) -> Optional[dict]:
-    """Nạp profile qua service_role (bỏ qua RLS)."""
-    url, skey = _supabase_url(), _service_key()
-    if not (url and skey):
-        return None
-    try:
-        r = _client.get(
-            f"{url.rstrip('/')}/rest/v1/profiles",
-            params={"id": f"eq.{user_id}", "select": "id,email,full_name,role,status,must_change_password"},
-            headers={"apikey": skey, "Authorization": f"Bearer {skey}"},
-        )
-        if r.status_code == 200 and r.json():
-            return r.json()[0]
-    except httpx.HTTPError:
-        return None
-    return None
-
-
 def current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
-    """
-    Token tuỳ chọn. Có token -> verify + nạp profile.
-    Trả dict {id, email, role, status, must_change_password} hoặc None (khách).
-    user 'disabled' -> 403.
-    """
+    """Token tuỳ chọn. Có token -> verify -> trả danh tính {id, email, full_name}.
+    KHÔNG còn gắn role ở đây — vai trò phụ thuộc vào cửa hàng (xem shop_context)."""
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
     token = authorization.split(" ", 1)[1].strip()
     u = _verify_token(token)
     uid = u.get("id") or u.get("sub")
-    prof = _fetch_profile(uid) or {}
-    if prof.get("status") == "disabled":
-        raise HTTPException(status_code=403, detail="Tài khoản đã bị vô hiệu hoá. Liên hệ admin.")
+    meta = u.get("user_metadata") or {}
     return {
         "id": uid,
-        "email": u.get("email") or prof.get("email"),
-        "role": prof.get("role", "staff"),
-        "status": prof.get("status", "active"),
-        "must_change_password": bool(prof.get("must_change_password", False)),
-        "full_name": prof.get("full_name"),
+        "email": (u.get("email") or "").lower() or None,
+        "full_name": meta.get("full_name") or meta.get("name"),
     }
 
 
-_DEMO_OWNER = {"id": None, "email": "demo@local", "role": "owner",
-               "status": "active", "must_change_password": False, "full_name": "Demo"}
+_DEMO_CTX = {
+    "user": {"id": DEMO_USER_ID, "email": "demo@local", "full_name": "Demo"},
+    "user_id": DEMO_USER_ID, "email": "demo@local",
+    "shop_id": DEMO_SHOP_ID, "role": "owner", "shops": [],
+}
 
 
-def require_user(user: Optional[dict] = Depends(current_user)) -> dict:
-    """Dependency: bắt buộc đã đăng nhập (và active). Chế độ demo (chưa cấu hình
-    Supabase) coi như owner để dev/test chạy được."""
+def shop_context(user: Optional[dict] = Depends(current_user),
+                 x_shop_id: Optional[str] = Header(default=None)) -> dict:
+    """Bối cảnh làm việc: ai + đang ở cửa hàng nào + vai trò gì.
+
+    - Demo (chưa bật auth): owner của shop demo.
+    - Có auth: chọn shop theo header X-Shop-Id nếu user là thành viên active;
+      nếu không có header -> shop đầu tiên. Vai trò = vai trò trong shop đó.
+      Nếu user chưa thuộc shop nào -> shop_id=None (frontend đưa vào onboarding).
+    """
     if not auth_enabled():
-        return _DEMO_OWNER
+        return dict(_DEMO_CTX)
     if not user:
+        return {"user": None, "user_id": None, "email": None, "shop_id": None, "role": None, "shops": []}
+
+    db = get_db()
+    shops = db.list_user_shops(user["id"])
+    chosen = None
+    if x_shop_id:
+        chosen = next((s for s in shops if str(s.get("id")) == str(x_shop_id)), None)
+        if chosen is None:
+            # Header trỏ tới shop user KHÔNG phải thành viên -> chặn (chống dò shop khác).
+            raise HTTPException(status_code=403, detail="Bạn không thuộc cửa hàng này")
+    elif shops:
+        chosen = shops[0]
+
+    return {
+        "user": user, "user_id": user["id"], "email": user.get("email"),
+        "shop_id": chosen["id"] if chosen else None,
+        "role": chosen.get("my_role") if chosen else None,
+        "shops": shops,
+    }
+
+
+def require_user(ctx: dict = Depends(shop_context)) -> dict:
+    """Bắt buộc đã đăng nhập (demo coi như đã đăng nhập)."""
+    if ctx.get("user") is None and auth_enabled():
         raise HTTPException(status_code=401, detail="Cần đăng nhập")
-    return user
+    return ctx
 
 
-def require_owner(user: dict = Depends(require_user)) -> dict:
-    """Dependency: bắt buộc vai trò owner."""
-    if not auth_enabled():
-        return _DEMO_OWNER
-    if user.get("role") != "owner":
-        raise HTTPException(status_code=403, detail="Chỉ chủ shop (owner) mới có quyền này")
-    return user
+def require_shop(ctx: dict = Depends(require_user)) -> dict:
+    """Bắt buộc đang ở 1 cửa hàng hợp lệ (là thành viên active)."""
+    if not ctx.get("shop_id"):
+        raise HTTPException(status_code=409, detail="Chưa chọn/ chưa có cửa hàng")
+    return ctx
 
 
-def user_id_of(user: Optional[dict]) -> Optional[str]:
-    if not user:
+def require_owner(ctx: dict = Depends(require_shop)) -> dict:
+    """Bắt buộc vai trò owner trong cửa hàng đang chọn."""
+    if ctx.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Chỉ chủ cửa hàng (owner) mới có quyền này")
+    return ctx
+
+
+def user_id_of(ctx: Optional[dict]) -> Optional[str]:
+    if not ctx:
         return None
-    return user.get("id") or user.get("sub")
+    uid = ctx.get("user_id")
+    return None if uid == DEMO_USER_ID else uid
