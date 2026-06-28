@@ -12,23 +12,26 @@ import Employees from "./pages/Employees.jsx";
 import Customers from "./pages/Customers.jsx";
 import Settings from "./pages/Settings.jsx";
 
+// Mỗi tab: icon Phosphor + nhãn + phụ đề (hiển thị ở topbar) + vai trò được xem.
 const ALL_TABS = [
-  { id: "sales", label: "Bán hàng", icon: "🛒", roles: ["owner", "staff"] },
-  { id: "products", label: "Sản phẩm", icon: "📦", roles: ["owner", "staff"] },
-  { id: "orders", label: "Đơn hàng", icon: "🧾", roles: ["owner", "staff"] },
-  { id: "customers", label: "Khách hàng", icon: "🧑", roles: ["owner", "staff"] },
-  { id: "reports", label: "Báo cáo", icon: "📊", roles: ["owner"] },
-  { id: "employees", label: "Nhân viên", icon: "👥", roles: ["owner"] },
-  { id: "settings", label: "Cài đặt", icon: "⚙️", roles: ["owner", "staff"] },
+  { id: "sales", label: "Bán hàng", icon: "ph-storefront", sub: "Tạo đơn nhanh tại quầy", roles: ["owner", "staff"] },
+  { id: "products", label: "Sản phẩm", icon: "ph-package", sub: "Quản lý kho hàng", roles: ["owner", "staff"] },
+  { id: "orders", label: "Đơn hàng", icon: "ph-receipt", sub: "Lịch sử giao dịch", roles: ["owner", "staff"] },
+  { id: "customers", label: "Khách hàng", icon: "ph-users", sub: "Cơ sở dữ liệu khách", roles: ["owner", "staff"] },
+  { id: "reports", label: "Báo cáo", icon: "ph-chart-pie-slice", sub: "Tình hình kinh doanh", roles: ["owner"] },
+  { id: "employees", label: "Nhân viên", icon: "ph-user-circle-gear", sub: "Phân quyền & truy cập", roles: ["owner"] },
+  { id: "settings", label: "Cài đặt", icon: "ph-gear", sub: "Tài khoản & cửa hàng", roles: ["owner", "staff"] },
 ];
 
 const DEMO_USER = { role: "owner", email: "demo@local", full_name: "Demo", must_change_password: false };
+const initial = (s) => (s || "?").trim().split(/\s+/).pop()[0]?.toUpperCase() || "?";
 
 export default function App() {
-  const [booting, setBooting] = useState(authEnabled);     // chờ biết trạng thái phiên
+  const [booting, setBooting] = useState(authEnabled);
   const [session, setSession] = useState(null);
-  const [user, setUser] = useState(authEnabled ? null : DEMO_USER); // profile (role…)
+  const [user, setUser] = useState(authEnabled ? null : DEMO_USER);
   const [tab, setTab] = useState("sales");
+  const [collapsed, setCollapsed] = useState(false);
 
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -70,7 +73,6 @@ export default function App() {
     const ready = !authEnabled || (user && !user.must_change_password);
     if (!ready) return;
     const role = authEnabled ? user.role : "owner";
-    // Hiển thị NGAY dữ liệu cache (nếu có) -> cảm giác tức thì, rồi revalidate ngầm.
     const cached = readCache("core");
     if (cached) {
       setProducts(cached.p || []); setCustomers(cached.c || []); setOrders(cached.o || []);
@@ -81,72 +83,91 @@ export default function App() {
     }
   }, [user, reload]);
 
-  // --- Màn hình ---
+  // --- Màn hình chặn (chưa đăng nhập / chưa có profile / buộc đổi mật khẩu) ---
   if (booting) return <div className="full-center">Đang tải…</div>;
   if (authEnabled && !session) return <LoginPage />;
   if (authEnabled && session && !user) return <div className="full-center">Đang tải hồ sơ…</div>;
   if (authEnabled && user?.must_change_password)
     return <ForceChangePassword email={user.email} onDone={() => api.me().then(setUser)} />;
 
-  const tabs = ALL_TABS.filter((t) => t.roles.includes(user?.role || "owner"));
-  const activeTab = tabs.find((t) => t.id === tab) ? tab : "sales";
+  const role = user?.role || "owner";
+  const tabs = ALL_TABS.filter((t) => t.roles.includes(role));
+  const active = tabs.find((t) => t.id === tab) ? tab : "sales";
+  const meta = ALL_TABS.find((t) => t.id === active);
+  const roleLabel = role === "owner" ? "Chủ cửa hàng" : role === "staff" ? "Nhân viên" : "Demo";
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="logo">
-          <span className="logo-mark">🛒</span>
-          <div>
-            <div className="logo-title">ThiemCun POS</div>
-            <div className="logo-sub">Quản lý bán hàng</div>
-          </div>
+      {/* SIDEBAR */}
+      <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+        <div className="sidebar-head">
+          <div className="logo-badge"><i className="ph-fill ph-storefront" /></div>
+          {!collapsed && <span className="logo-text">ThiemCun <span>POS</span></span>}
         </div>
-        <nav>
+        <nav className="nav">
           {tabs.map((t) => (
-            <button key={t.id} className={`nav-item ${activeTab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-              <span className="nav-icon">{t.icon}</span>{t.label}
+            <button key={t.id} className={`nav-item ${active === t.id ? "active" : ""}`} onClick={() => setTab(t.id)} title={t.label}>
+              <i className={`ph ${t.icon}`} />
+              {!collapsed && <span>{t.label}</span>}
             </button>
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="user-box">
-            <div className="user-name">{user?.email}</div>
-            <div className="user-role">{user?.role === "owner" ? "Chủ shop" : user?.role === "staff" ? "Nhân viên" : "Demo"}</div>
-            {authEnabled && <button className="btn-link" onClick={signOut}>Đăng xuất</button>}
+          <div className="sidebar-user">
+            <div className="avatar">{initial(user?.full_name || user?.email)}</div>
+            {!collapsed && (
+              <div className="info">
+                <div className="name">{user?.full_name || user?.email}</div>
+                <div className="role">{roleLabel}</div>
+                {authEnabled && <button className="btn-signout" onClick={signOut}>Đăng xuất</button>}
+              </div>
+            )}
           </div>
-          <div className="built-by">Dựng bằng Claude Code</div>
         </div>
       </aside>
 
-      <main className="content">
-        {error && <div className="banner banner-error">⚠️ {error} <button className="btn-link" onClick={() => reload(user?.role)}>Thử lại</button></div>}
-        {loading ? <SkeletonPage /> : (
-          <>
-            {activeTab === "sales" && <Sales products={products} customers={customers} onDone={() => reload(user?.role)} />}
-            {activeTab === "products" && <Products products={products} onChanged={() => reload(user?.role)} />}
-            {activeTab === "orders" && <Orders orders={orders} />}
-            {activeTab === "customers" && <Customers />}
-            {activeTab === "reports" && <Reports report={report} orders={orders} customers={customers} />}
-            {activeTab === "employees" && <Employees />}
-            {activeTab === "settings" && <Settings user={user || DEMO_USER} />}
-          </>
-        )}
-      </main>
+      {/* MAIN */}
+      <div className="main">
+        <header className="topbar">
+          <button className="topbar-toggle" onClick={() => setCollapsed((c) => !c)} title="Thu gọn">
+            <i className="ph ph-sidebar-simple" />
+          </button>
+          <div className="topbar-titles">
+            <h1>{meta?.label}</h1>
+            <div className="sub">{meta?.sub}</div>
+          </div>
+          <button className="icon-btn" title="Thông báo"><i className="ph ph-bell" /><span className="dot" /></button>
+        </header>
+
+        <main className="content">
+          {error && (
+            <div className="page" style={{ paddingBottom: 0 }}>
+              <div className="banner banner-error">⚠️ {error}<button className="btn-link" onClick={() => reload(role)}>Thử lại</button></div>
+            </div>
+          )}
+          {loading ? <SkeletonPage /> : (
+            <>
+              {active === "sales" && <Sales products={products} customers={customers} report={report} onDone={() => reload(role)} />}
+              {active === "products" && <Products products={products} onChanged={() => reload(role)} />}
+              {active === "orders" && <Orders orders={orders} />}
+              {active === "customers" && <Customers />}
+              {active === "reports" && <Reports report={report} orders={orders} customers={customers} products={products} />}
+              {active === "employees" && <Employees />}
+              {active === "settings" && <Settings user={user || DEMO_USER} />}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
 
-// Skeleton loader — cảm giác load nhanh hơn (thay "Đang tải…").
+// Skeleton loader — cảm giác load nhanh hơn (khớp layout dashboard).
 function SkeletonPage() {
   return (
     <div className="page" aria-busy="true">
-      <div className="sk sk-title" />
-      <div className="kpi-row">
-        {[0, 1, 2, 3].map((i) => <div key={i} className="card pad"><div className="sk sk-line w40" /><div className="sk sk-big" /></div>)}
-      </div>
-      <div className="card pad">
-        {[0, 1, 2, 3, 4].map((i) => <div key={i} className="sk sk-row" />)}
-      </div>
+      <div className="sk-kpis">{[0, 1, 2, 3].map((i) => <div key={i} className="sk sk-kpi" />)}</div>
+      <div className="sk sk-block" />
     </div>
   );
 }
