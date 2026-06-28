@@ -1,14 +1,14 @@
 # CI/CD — ThiemCun POS
 
-Quy trình: **PR → test+preview · push main → staging (deploy+migrate) · prod → chạy tay có xác nhận**.
-Nguyên tắc: **không sửa prod trực tiếp** — prod chỉ qua `release.yml`, **thủ công + gõ xác nhận**.
+Quy trình: **PR → test+preview · push main → staging (deploy+migrate) · tag `v*` → prod (chờ duyệt)**.
+Nguyên tắc: **không sửa prod trực tiếp** — prod chỉ qua `release.yml`, **dừng chờ Required reviewer duyệt**.
 
 ## Workflows
 | File | Trigger | Việc |
 |---|---|---|
 | `pr.yml` | pull_request | npm build + pytest + Vercel **preview** deploy |
 | `main.yml` | push main | test → migrate **staging** Supabase → deploy **staging** Vercel |
-| `release.yml` | **dispatch + gõ `DEPLOY-PROD`** | migrate **prod** Supabase → deploy **prod** Vercel |
+| `release.yml` | **tag `v*.*.*`** (hoặc dispatch) | dừng ở environment `production` chờ duyệt → migrate + deploy **prod** |
 | `migrations.yml` | dispatch (chọn staging/prod) | áp migration thủ công |
 | `keepwarm.yml` | cron 30' | ping `/api/health` chống Supabase ngủ + giảm cold start |
 
@@ -23,13 +23,18 @@ Nguyên tắc: **không sửa prod trực tiếp** — prod chỉ qua `release.y
 - `STAGING_URL` (vd https://thiemcun-staging-s1.vercel.app)
 - `PROD_URL` (vd https://thiemcun-prod.vercel.app)
 
-## Cổng duyệt PROD (gate) — phụ thuộc gói GitHub
-- **Repo PRIVATE + gói Free**: GitHub **không** cho bật `Required reviewers` (trả về 422
-  "billing plan"). Vì vậy `release.yml` chỉ chạy bằng **workflow_dispatch** và **bắt gõ `DEPLOY-PROD`**
-  → prod không bao giờ tự deploy; phải là hành động thủ công có xác nhận của người chủ.
-- **Nâng cấp gate native** (khuyến nghị khi lên thật): chuyển repo **public** *hoặc* dùng **GitHub Pro/Team**
-  → Settings → Environments → **production** → bật **Required reviewers** (chính bạn). Khi đó có thể đổi
-  trigger sang tag `v*` mà run vẫn **dừng chờ duyệt** trước khi migrate+deploy prod.
+## Cổng duyệt PROD (gate) — NATIVE (đang bật)
+Repo này **PUBLIC** → `Required reviewers` khả dụng trên gói **Free**. Đã cấu hình:
+**Settings → Environments → production → Required reviewers = `thiemcun169`**.
+
+Luồng release prod:
+1. `git tag v1.2.3 && git push --tags` (hoặc Actions → release → Run workflow).
+2. `release.yml` khởi động nhưng **dừng (pending)** tại job `release` vì `environment: production`.
+3. GitHub gửi yêu cầu duyệt → vào **Actions → run → Review deployments → Approve and deploy**.
+4. Sau approve: migrate prod Supabase → deploy prod Vercel.
+
+> Lịch sử (gói cũ): khi repo còn **private + Free**, GitHub trả 422 cho required-reviewers → từng phải
+> dùng cổng phần mềm `workflow_dispatch` + gõ `DEPLOY-PROD`. Public hoá đã thay bằng cổng native ở trên.
 
 ## ⚠️ Lưu ý
 - **`uv` bắt buộc trong job deploy.** Vercel build phần Python (FastAPI) gọi `uv` để cài deps khi
