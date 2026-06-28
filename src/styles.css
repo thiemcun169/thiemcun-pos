@@ -300,3 +300,12 @@ input:focus, select:focus { outline:none; border-color: var(--accent); box-shado
 .tab { background: none; border: none; padding: 10px 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .modal textarea, .auth-form textarea { padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; font-family: inherit; font-size: 14px; resize: vertical; }
+
+/* ============ Slice 2: skeleton loaders ============ */
+@keyframes sk-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.sk { background: linear-gradient(90deg, #eef0f1 25%, #f6f7f8 37%, #eef0f1 63%); background-size: 800px 100%; animation: sk-shimmer 1.3s infinite linear; border-radius: 8px; }
+.sk-title { height: 26px; width: 200px; margin-bottom: 22px; }
+.sk-line { height: 12px; margin-bottom: 10px; }
+.sk-line.w40 { width: 40%; }
+.sk-big { height: 30px; width: 70%; }
+.sk-row { height: 18px; margin: 14px 0; }
