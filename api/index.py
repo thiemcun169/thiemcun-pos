@@ -62,6 +62,9 @@ class ProductIn(BaseModel):
     category: Optional[str] = None
     price: float = Field(ge=0)
     stock: int = Field(default=0, ge=0)
+    image_url: Optional[str] = None
+    description: Optional[str] = None
+    low_stock_threshold: int = Field(default=5, ge=0)
 
 
 class ProductUpdate(BaseModel):
@@ -70,6 +73,16 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     price: Optional[float] = Field(default=None, ge=0)
     stock: Optional[int] = Field(default=None, ge=0)
+    image_url: Optional[str] = None
+    description: Optional[str] = None
+    low_stock_threshold: Optional[int] = Field(default=None, ge=0)
+
+
+class ShopUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    hotline: Optional[str] = None
+    logo_url: Optional[str] = None
 
 
 class CustomerIn(BaseModel):
@@ -142,6 +155,15 @@ def update_product(product_id: int, body: ProductUpdate, user: dict = Depends(re
     return updated
 
 
+@app.delete("/api/products/{product_id}")
+def delete_product(product_id: int, user: dict = Depends(require_user)):
+    if not get_db().get_product(product_id):
+        raise HTTPException(status_code=404, detail="Không tìm thấy sản phẩm")
+    get_db().delete_product(product_id)
+    get_db().write_audit(user.get("id"), user.get("email"), "product_delete", target=str(product_id))
+    return {"ok": True}
+
+
 # --------------------------- Customers ---------------------------
 @app.get("/api/customers")
 def list_customers(user=Depends(current_user)):
@@ -151,6 +173,28 @@ def list_customers(user=Depends(current_user)):
 @app.post("/api/customers", status_code=201)
 def create_customer(body: CustomerIn, user: dict = Depends(require_user)):
     return get_db().create_customer(body.model_dump())
+
+
+@app.get("/api/customers/{customer_id}")
+def get_customer(customer_id: int, user: dict = Depends(require_user)):
+    c = get_db().get_customer(customer_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng")
+    return c
+
+
+# --------------------------- Shop settings ---------------------------
+@app.get("/api/shop")
+def get_shop(user=Depends(current_user)):
+    return get_db().get_shop()
+
+
+@app.patch("/api/shop")
+def update_shop(body: ShopUpdate, user: dict = Depends(require_owner)):
+    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    shop = get_db().update_shop(data)
+    get_db().write_audit(user.get("id"), user.get("email"), "shop_update", payload=data)
+    return shop
 
 
 # --------------------------- Orders ---------------------------

@@ -8,15 +8,17 @@ import Products from "./pages/Products.jsx";
 import Orders from "./pages/Orders.jsx";
 import Reports from "./pages/Reports.jsx";
 import Employees from "./pages/Employees.jsx";
-import Profile from "./pages/Profile.jsx";
+import Customers from "./pages/Customers.jsx";
+import Settings from "./pages/Settings.jsx";
 
 const ALL_TABS = [
   { id: "sales", label: "Bán hàng", icon: "🛒", roles: ["owner", "staff"] },
   { id: "products", label: "Sản phẩm", icon: "📦", roles: ["owner", "staff"] },
   { id: "orders", label: "Đơn hàng", icon: "🧾", roles: ["owner", "staff"] },
+  { id: "customers", label: "Khách hàng", icon: "🧑", roles: ["owner", "staff"] },
   { id: "reports", label: "Báo cáo", icon: "📊", roles: ["owner"] },
   { id: "employees", label: "Nhân viên", icon: "👥", roles: ["owner"] },
-  { id: "profile", label: "Hồ sơ", icon: "👤", roles: ["owner", "staff"] },
+  { id: "settings", label: "Cài đặt", icon: "⚙️", roles: ["owner", "staff"] },
 ];
 
 const DEMO_USER = { role: "owner", email: "demo@local", full_name: "Demo", must_change_password: false };
@@ -111,9 +113,10 @@ export default function App() {
             {activeTab === "sales" && <Sales products={products} customers={customers} onDone={() => reload(user?.role)} />}
             {activeTab === "products" && <Products products={products} onChanged={() => reload(user?.role)} />}
             {activeTab === "orders" && <Orders orders={orders} />}
+            {activeTab === "customers" && <Customers />}
             {activeTab === "reports" && <Reports report={report} />}
             {activeTab === "employees" && <Employees />}
-            {activeTab === "profile" && <Profile user={user || DEMO_USER} />}
+            {activeTab === "settings" && <Settings user={user || DEMO_USER} />}
           </>
         )}
       </main>

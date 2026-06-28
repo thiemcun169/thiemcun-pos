@@ -283,3 +283,20 @@ input:focus, select:focus { outline:none; border-color: var(--accent); box-shado
 .mfa-enroll { margin-top: 12px; }
 .mfa-qr { width: 168px; height: 168px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px; }
 .mfa-enroll code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+
+/* ============ Slice 1: modal / drawer / tabs / avatar ============ */
+.banner-warn { background: var(--warn-wash); color: var(--warn); }
+.modal-overlay, .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display:flex; z-index: 50; }
+.modal-overlay { align-items: center; justify-content: center; padding: 20px; }
+.modal { background: var(--surface); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0,0,0,.18); width: 100%; max-width: 520px; padding: 24px; max-height: 90vh; overflow-y: auto; }
+.modal h2 { margin-bottom: 14px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+.drawer-overlay { justify-content: flex-end; }
+.drawer { background: var(--surface); width: 100%; max-width: 440px; height: 100vh; padding: 24px; overflow-y: auto; box-shadow: -8px 0 30px rgba(0,0,0,.12); }
+.drawer-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+.avatar-row { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 30px; height: 30px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.tab { background: none; border: none; padding: 10px 14px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.modal textarea, .auth-form textarea { padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; font-family: inherit; font-size: 14px; resize: vertical; }

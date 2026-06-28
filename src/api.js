@@ -34,6 +34,12 @@ export const api = {
 
   listCustomers: () => request("/customers"),
   createCustomer: (data) => request("/customers", { method: "POST", body: JSON.stringify(data) }),
+  getCustomer: (id) => request(`/customers/${id}`),
+
+  deleteProduct: (id) => request(`/products/${id}`, { method: "DELETE" }),
+
+  getShop: () => request("/shop"),
+  updateShop: (data) => request("/shop", { method: "PATCH", body: JSON.stringify(data) }),
 
   listOrders: () => request("/orders"),
   createOrder: (data) => request("/orders", { method: "POST", body: JSON.stringify(data) }),
