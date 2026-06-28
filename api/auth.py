@@ -74,11 +74,14 @@ def current_user(authorization: Optional[str] = Header(default=None)) -> Optiona
     }
 
 
-_DEMO_CTX = {
-    "user": {"id": DEMO_USER_ID, "email": "demo@local", "full_name": "Demo"},
-    "user_id": DEMO_USER_ID, "email": "demo@local",
-    "shop_id": DEMO_SHOP_ID, "role": "owner", "shops": [],
-}
+def _demo_ctx() -> dict:
+    """Bối cảnh demo (chưa cấu hình Supabase): owner của shop demo, kèm danh sách shop."""
+    shops = get_db().list_user_shops(DEMO_USER_ID)
+    return {
+        "user": {"id": DEMO_USER_ID, "email": "demo@local", "full_name": "Demo"},
+        "user_id": DEMO_USER_ID, "email": "demo@local",
+        "shop_id": DEMO_SHOP_ID, "role": "owner", "shops": shops,
+    }
 
 
 def shop_context(user: Optional[dict] = Depends(current_user),
@@ -87,11 +90,12 @@ def shop_context(user: Optional[dict] = Depends(current_user),
 
     - Demo (chưa bật auth): owner của shop demo.
     - Có auth: chọn shop theo header X-Shop-Id nếu user là thành viên active;
-      nếu không có header -> shop đầu tiên. Vai trò = vai trò trong shop đó.
+      nếu header trỏ tới shop user KHÔNG thuộc (hoặc đã cũ) -> tự lùi về shop đầu
+      tiên CỦA CHÍNH HỌ (an toàn: user chỉ bao giờ chạm được shop của mình).
       Nếu user chưa thuộc shop nào -> shop_id=None (frontend đưa vào onboarding).
     """
     if not auth_enabled():
-        return dict(_DEMO_CTX)
+        return _demo_ctx()
     if not user:
         return {"user": None, "user_id": None, "email": None, "shop_id": None, "role": None, "shops": []}
 
@@ -100,11 +104,8 @@ def shop_context(user: Optional[dict] = Depends(current_user),
     chosen = None
     if x_shop_id:
         chosen = next((s for s in shops if str(s.get("id")) == str(x_shop_id)), None)
-        if chosen is None:
-            # Header trỏ tới shop user KHÔNG phải thành viên -> chặn (chống dò shop khác).
-            raise HTTPException(status_code=403, detail="Bạn không thuộc cửa hàng này")
-    elif shops:
-        chosen = shops[0]
+    if chosen is None and shops:
+        chosen = shops[0]  # không khớp header -> lùi về shop mặc định (không lộ shop khác)
 
     return {
         "user": user, "user_id": user["id"], "email": user.get("email"),
