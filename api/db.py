@@ -179,9 +179,9 @@ class SqliteDatabase(Database):
                     joined_at TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
-                -- LUẬT 1-shop: mỗi user chỉ 1 membership ACTIVE.
-                CREATE UNIQUE INDEX IF NOT EXISTS one_active_membership_per_user
-                    ON shop_members(user_id) WHERE status='active' AND user_id IS NOT NULL;
+                -- Đa thành viên: 1 user có thể active ở NHIỀU shop (chỉ chống trùng trong cùng shop).
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_member_shop_user
+                    ON shop_members(shop_id, user_id) WHERE user_id IS NOT NULL;
                 CREATE TABLE IF NOT EXISTS products (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     shop_id TEXT,
@@ -296,10 +296,8 @@ class SqliteDatabase(Database):
         return self._shop_row(row) if row else None
 
     def create_shop(self, name: str, user_id: Optional[str]) -> dict:
+        # Đa thành viên: user có thể tạo/đứng nhiều shop (vừa owner shop này vừa staff shop khác).
         uid = user_id or DEMO_USER_ID
-        # LUẬT 1-shop: nếu user đã thuộc 1 shop active -> chặn.
-        if self.get_active_membership(uid):
-            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tạo mới.")
         sid = _new_id()
         with self._lock:
             self._conn.execute(
@@ -432,8 +430,6 @@ class SqliteDatabase(Database):
             raise ValueError("Lời mời đã hết hạn.")
         if (inv.get("invited_email") or "").lower() != (email or "").lower():
             raise ValueError("Email đăng nhập không khớp với email được mời.")
-        if self.get_active_membership(user_id):
-            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tham gia shop khác.")
         with self._lock:
             self._conn.execute(
                 "UPDATE shop_members SET user_id=?, status='active', joined_at=CURRENT_TIMESTAMP,"
@@ -751,8 +747,7 @@ class SupabaseDatabase(Database):
         return rows[0] if rows else None
 
     def create_shop(self, name: str, user_id: Optional[str]) -> dict:
-        if self.get_active_membership(user_id):
-            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tạo mới.")
+        # Đa thành viên: cho phép user tạo nhiều shop / đứng nhiều shop song song.
         rows = self._post("/shops", {"name": name, "created_by": user_id})
         shop = rows[0]
         self._post("/shop_members", {
@@ -852,8 +847,6 @@ class SupabaseDatabase(Database):
             raise ValueError("Lời mời đã hết hạn.")
         if (inv.get("invited_email") or "").lower() != (email or "").lower():
             raise ValueError("Email đăng nhập không khớp với email được mời.")
-        if self.get_active_membership(user_id):
-            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tham gia shop khác.")
         self._patch("/shop_members",
                     {"user_id": user_id, "status": "active", "joined_at": "now()", "invite_token": None},
                     {"id": f"eq.{inv['id']}"})

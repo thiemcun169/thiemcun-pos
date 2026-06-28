@@ -27,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from auth import (auth_enabled, require_owner, require_shop,
-                  require_user, user_id_of)
+                  require_user, send_invite_email, user_id_of)
 from db import get_db
 from pricing import StockError
 
@@ -115,6 +115,7 @@ class OrderIn(BaseModel):
 class MemberInvite(BaseModel):
     email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     role: str = Field(default="staff", pattern="^(owner|staff)$")
+    origin: Optional[str] = None  # frontend gửi window.location.origin để build link email
 
 
 class MemberUpdate(BaseModel):
@@ -152,13 +153,8 @@ def list_shops(ctx: dict = Depends(require_user)):
 
 @app.post("/api/shops", status_code=201)
 def create_shop(body: ShopCreate, ctx: dict = Depends(require_user)):
-    # Luật 1-shop: user đã có cửa hàng -> chặn (db cũng raise, đây trả lỗi rõ ràng).
-    if ctx.get("shop_id"):
-        raise HTTPException(status_code=409, detail="Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tạo mới.")
-    try:
-        shop = get_db().create_shop(body.name.strip(), user_id_of(ctx))
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    # Đa thành viên: user có thể tạo nhiều shop (vừa owner shop này, vừa staff shop khác).
+    shop = get_db().create_shop(body.name.strip(), user_id_of(ctx))
     get_db().write_audit(shop["id"], user_id_of(ctx), ctx.get("email"), "shop_create", target=shop["id"], payload={"name": shop["name"]})
     return shop
 
@@ -282,12 +278,17 @@ def list_members(ctx: dict = Depends(require_owner)):
 
 @app.post("/api/members", status_code=201)
 def invite_member(body: MemberInvite, ctx: dict = Depends(require_owner)):
-    # Chưa có dịch vụ email -> sinh token + hạn 7 ngày, trả link để owner tự gửi.
+    # Sinh token + hạn 7 ngày -> lưu lời mời. Gửi email tự động qua Supabase (nếu có origin),
+    # đồng thời trả link để owner copy gửi tay (Zalo/SMS) nếu email chưa tới.
     token = uuid.uuid4().hex
     expires = (datetime.now(timezone.utc) + timedelta(days=INVITE_TTL_DAYS)).isoformat()
     row = get_db().invite_member(ctx["shop_id"], str(body.email), body.role, user_id_of(ctx), token, expires)
-    get_db().write_audit(ctx["shop_id"], user_id_of(ctx), ctx.get("email"), "invite_member", target=str(body.email), payload={"role": body.role})
-    return {**(row or {}), "invite_token": token, "join_path": f"/join?token={token}", "expires_at": expires}
+    join_path = f"/join?token={token}"
+    emailed = False
+    if body.origin:
+        emailed = send_invite_email(str(body.email), body.origin.rstrip("/") + join_path)
+    get_db().write_audit(ctx["shop_id"], user_id_of(ctx), ctx.get("email"), "invite_member", target=str(body.email), payload={"role": body.role, "emailed": emailed})
+    return {**(row or {}), "invite_token": token, "join_path": join_path, "expires_at": expires, "email_sent": emailed}
 
 
 @app.patch("/api/members/{member_id}")

@@ -15,7 +15,7 @@ export default function JoinShop({ token, onJoined, onSkip }) {
 
   async function accept() {
     setBusy(true); setErr(null);
-    try { await api.joinByToken(token); onJoined(); }
+    try { const r = await api.joinByToken(token); onJoined(r?.shop_id); }
     catch (e) { setErr(e.message); setBusy(false); }
   }
 
