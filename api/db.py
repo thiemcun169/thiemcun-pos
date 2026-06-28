@@ -76,6 +76,19 @@ class Database:
     def list_audit(self, limit: int = 100) -> list[dict]:
         return []
 
+    # --- slice 1: product delete / customer detail / shop settings (defaults) ---
+    def delete_product(self, product_id: int) -> None:
+        return None
+
+    def get_customer(self, customer_id: int) -> Optional[dict]:
+        return None
+
+    def get_shop(self) -> dict:
+        return {"id": True, "name": "ThiemCun Shop", "address": None, "hotline": None, "logo_url": None}
+
+    def update_shop(self, data: dict) -> dict:
+        return self.get_shop()
+
 
 # ---------------------------------------------------------------------------
 # SQLite — dùng cho local dev & test. Dữ liệu mẫu được nạp sẵn.
@@ -102,6 +115,10 @@ class SqliteDatabase(Database):
                     category TEXT,
                     price REAL NOT NULL DEFAULT 0,
                     stock INTEGER NOT NULL DEFAULT 0,
+                    image_url TEXT,
+                    description TEXT,
+                    low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+                    deleted_at TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS customers (
@@ -110,6 +127,13 @@ class SqliteDatabase(Database):
                     phone TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE TABLE IF NOT EXISTS shop_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    name TEXT NOT NULL DEFAULT 'ThiemCun Shop',
+                    address TEXT, hotline TEXT, logo_url TEXT,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT OR IGNORE INTO shop_settings (id, name) VALUES (1, 'ThiemCun Shop');
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer_id INTEGER,
@@ -153,9 +177,11 @@ class SqliteDatabase(Database):
             self.create_order(o["items"], o.get("customer_id"), user_id=None)
 
     # --- products ---
+    _PROD_COLS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
+
     def list_products(self) -> list[dict]:
         with self._lock:
-            rows = self._conn.execute("SELECT * FROM products ORDER BY id").fetchall()
+            rows = self._conn.execute("SELECT * FROM products WHERE deleted_at IS NULL ORDER BY id").fetchall()
         return [dict(r) for r in rows]
 
     def get_product(self, product_id: int) -> Optional[dict]:
@@ -166,8 +192,10 @@ class SqliteDatabase(Database):
     def create_product(self, data: dict) -> dict:
         with self._lock:
             cur = self._conn.execute(
-                "INSERT INTO products (name, sku, category, price, stock) VALUES (?,?,?,?,?)",
-                (data["name"], data.get("sku"), data.get("category"), data["price"], data.get("stock", 0)),
+                "INSERT INTO products (name, sku, category, price, stock, image_url, description, low_stock_threshold)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (data["name"], data.get("sku"), data.get("category"), data["price"], data.get("stock", 0),
+                 data.get("image_url"), data.get("description"), data.get("low_stock_threshold", 5)),
             )
             self._conn.commit()
             new_id = cur.lastrowid
@@ -180,17 +208,59 @@ class SqliteDatabase(Database):
         merged = {**existing, **data}
         with self._lock:
             self._conn.execute(
-                "UPDATE products SET name=?, sku=?, category=?, price=?, stock=? WHERE id=?",
-                (merged["name"], merged.get("sku"), merged.get("category"), merged["price"], merged["stock"], product_id),
+                "UPDATE products SET name=?, sku=?, category=?, price=?, stock=?, image_url=?, description=?,"
+                " low_stock_threshold=? WHERE id=?",
+                (merged["name"], merged.get("sku"), merged.get("category"), merged["price"], merged["stock"],
+                 merged.get("image_url"), merged.get("description"), merged.get("low_stock_threshold", 5), product_id),
             )
             self._conn.commit()
         return self.get_product(product_id)
 
+    def delete_product(self, product_id: int) -> None:
+        with self._lock:
+            self._conn.execute("UPDATE products SET deleted_at=CURRENT_TIMESTAMP WHERE id=?", (product_id,))
+            self._conn.commit()
+
     # --- customers ---
     def list_customers(self) -> list[dict]:
         with self._lock:
-            rows = self._conn.execute("SELECT * FROM customers ORDER BY id").fetchall()
+            rows = self._conn.execute(
+                """SELECT c.*, COUNT(o.id) AS purchase_count, COALESCE(SUM(o.total),0) AS total_spent
+                   FROM customers c LEFT JOIN orders o ON o.customer_id=c.id
+                   GROUP BY c.id ORDER BY c.id"""
+            ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_customer(self, customer_id: int) -> Optional[dict]:
+        with self._lock:
+            c = self._conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+            if not c:
+                return None
+            orders = self._conn.execute(
+                "SELECT id, total, status, created_at FROM orders WHERE customer_id=? ORDER BY id DESC", (customer_id,)
+            ).fetchall()
+        d = dict(c)
+        d["orders"] = [dict(o) for o in orders]
+        d["purchase_count"] = len(d["orders"])
+        d["total_spent"] = sum(float(o["total"]) for o in d["orders"])
+        return d
+
+    # --- shop settings ---
+    def get_shop(self) -> dict:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM shop_settings WHERE id=1").fetchone()
+        return dict(row) if row else {"id": 1, "name": "ThiemCun Shop"}
+
+    def update_shop(self, data: dict) -> dict:
+        cur = self.get_shop()
+        m = {**cur, **data}
+        with self._lock:
+            self._conn.execute(
+                "UPDATE shop_settings SET name=?, address=?, hotline=?, logo_url=?, updated_at=CURRENT_TIMESTAMP WHERE id=1",
+                (m.get("name") or "ThiemCun Shop", m.get("address"), m.get("hotline"), m.get("logo_url")),
+            )
+            self._conn.commit()
+        return self.get_shop()
 
     def create_customer(self, data: dict) -> dict:
         with self._lock:
@@ -333,31 +403,57 @@ class SupabaseDatabase(Database):
         return self._json_or_none(r)
 
     # --- products ---
+    _PROD_FIELDS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
+
     def list_products(self) -> list[dict]:
-        return self._get("/products", {"select": "*", "order": "id"})
+        return self._get("/products", {"select": "*", "deleted_at": "is.null", "order": "id"})
 
     def get_product(self, product_id: int) -> Optional[dict]:
         rows = self._get("/products", {"id": f"eq.{product_id}", "select": "*"})
         return rows[0] if rows else None
 
     def create_product(self, data: dict) -> dict:
-        rows = self._post("/products", {
-            "name": data["name"], "sku": data.get("sku"), "category": data.get("category"),
-            "price": data["price"], "stock": data.get("stock", 0),
-        })
+        payload = {k: data[k] for k in self._PROD_FIELDS if k in data}
+        payload["name"] = data["name"]; payload["price"] = data["price"]
+        rows = self._post("/products", payload)
         return rows[0]
 
     def update_product(self, product_id: int, data: dict) -> Optional[dict]:
-        rows = self._patch("/products", data, {"id": f"eq.{product_id}"})
+        clean = {k: v for k, v in data.items() if k in self._PROD_FIELDS}
+        rows = self._patch("/products", clean, {"id": f"eq.{product_id}"})
         return rows[0] if rows else None
+
+    def delete_product(self, product_id: int) -> None:
+        # soft delete
+        self._patch("/products", {"deleted_at": "now()"}, {"id": f"eq.{product_id}"})
 
     # --- customers ---
     def list_customers(self) -> list[dict]:
-        return self._get("/customers", {"select": "*", "order": "id"})
+        # customer_stats view = customers + purchase_count + total_spent
+        return self._get("/customer_stats", {"select": "*", "order": "id"})
+
+    def get_customer(self, customer_id: int) -> Optional[dict]:
+        rows = self._get("/customer_stats", {"id": f"eq.{customer_id}", "select": "*"})
+        if not rows:
+            return None
+        c = rows[0]
+        c["orders"] = self._get("/orders", {"customer_id": f"eq.{customer_id}",
+                                            "select": "id,total,status,created_at", "order": "id.desc"})
+        return c
 
     def create_customer(self, data: dict) -> dict:
         rows = self._post("/customers", {"name": data["name"], "phone": data.get("phone")})
         return rows[0]
+
+    # --- shop settings ---
+    def get_shop(self) -> dict:
+        rows = self._get("/shop_settings", {"select": "*", "limit": "1"})
+        return rows[0] if rows else {"name": "ThiemCun Shop"}
+
+    def update_shop(self, data: dict) -> dict:
+        clean = {k: data[k] for k in ("name", "address", "hotline", "logo_url") if k in data}
+        rows = self._patch("/shop_settings", clean, {"id": "eq.true"})
+        return rows[0] if rows else self.get_shop()
 
     # --- orders ---
     def list_orders(self, limit: int = 50) -> list[dict]:
