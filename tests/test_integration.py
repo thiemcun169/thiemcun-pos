@@ -2,7 +2,6 @@
 INTEGRATION TEST (giữa kim tự tháp) — gọi API thật qua FastAPI TestClient,
 ghi/đọc DB (SQLite in-memory). Kiểm dữ liệu chảy đúng giữa các tầng.
 """
-import pytest
 from fastapi.testclient import TestClient
 from index import app
 
