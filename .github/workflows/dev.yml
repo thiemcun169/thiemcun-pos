@@ -1,6 +1,6 @@
-name: dev — migrate + deploy (DEV environment)
-# Push vào dev = môi trường DEV: áp migration lên DB dev (Supabase staging project)
-# + deploy lên Vercel project dev (subdomain mặc định *.vercel.app, KHÔNG đụng prod domain).
+name: dev — test + migrate (DEV environment)
+# Push vào dev: chạy test + áp migration lên DB dev (Supabase staging project).
+# (Bỏ deploy Vercel dev: hạ tầng gọn còn 1 project prod; chạy app dev cục bộ khi cần.)
 on:
   push:
     branches: [dev]
@@ -28,25 +28,3 @@ jobs:
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_STAGING_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
           supabase db push --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
-
-  deploy-dev:
-    needs: migrate-dev
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.uv-bin" sh
-          echo "$HOME/.uv-bin" >> "$GITHUB_PATH"
-      - run: |
-          npm i -g vercel
-          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
