@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script defer src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: #FAFBFB; color: #202223; -webkit-font-smoothing: antialiased; }
+  button { font-family: inherit; }
+  input, select, textarea { font-family: inherit; }
+  i.ph, i[class^="ph-"], i[class*=" ph-"] { display: inline-flex; line-height: 1; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #d8dadc; border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  @keyframes slideInR { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+  #receipt-print { display: none; }
+  @media print {
+    body { background: #fff; }
+    body > * { visibility: hidden; }
+    #receipt-print, #receipt-print * { visibility: visible; }
+    #receipt-print { display: block !important; position: fixed; inset: 0; margin: 0; padding: 32px; background: #fff; }
+    .no-print { display: none !important; }
+  }
+</style>
+</helmet>
+
+<div style="height: 100vh; overflow: hidden; background: var(--bg,#FAFBFB);">
+
+  <!-- ===================== LOGIN ===================== -->
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="Đăng nhập" style="height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr;">
+      <div style="display: flex; align-items: center; justify-content: center; padding: 40px;">
+        <div style="width: 100%; max-width: 380px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 40px;">
+            <div style="width: 38px; height: 38px; border-radius: 10px; background: var(--accent,#008060); display: flex; align-items: center; justify-content: center;"><i class="ph-fill ph-storefront" style="color: #fff; font-size: 21px;"></i></div>
+            <span style="font-size: 19px; font-weight: 700; letter-spacing: -.3px;">ThiemCun <span style="color: var(--accent,#008060);">POS</span></span>
+          </div>
+          <h1 style="font-size: 26px; font-weight: 700; margin: 0 0 8px; letter-spacing: -.4px;">Đăng nhập</h1>
+          <p style="color: var(--sub,#6D7175); font-size: 14px; margin: 0 0 28px;">Quản lý cửa hàng của bạn mọi lúc, mọi nơi.</p>
+
+          <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Email</label>
+          <input value="{{ loginEmail }}" onInput="{{ onLoginEmail }}" placeholder="ban@thiemcun.vn" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; margin-bottom: 16px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" />
+
+          <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Mật khẩu</label>
+          <input type="password" value="{{ loginPw }}" onInput="{{ onLoginPw }}" placeholder="••••••••" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; margin-bottom: 8px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" />
+          <div style="text-align: right; margin-bottom: 20px;"><a href="#" style="font-size: 13px; color: var(--accent,#008060); text-decoration: none;">Quên mật khẩu?</a></div>
+
+          <button onClick="{{ doLogin }}" style="width: 100%; height: 46px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Đăng nhập</button>
+
+          <div style="display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--sub,#6D7175); font-size: 12px;"><div style="flex: 1; height: 1px; background: var(--border,#E1E3E5);"></div>hoặc<div style="flex: 1; height: 1px; background: var(--border,#E1E3E5);"></div></div>
+
+          <button onClick="{{ doGoogle }}" style="width: 100%; height: 46px; background: #fff; color: #202223; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;" style-hover="background: #FAFBFB;">
+            <span style="font-weight: 700; font-size: 16px;"><span style="color:#4285F4;">G</span><span style="color:#EA4335;">o</span><span style="color:#FBBC05;">o</span><span style="color:#4285F4;">g</span><span style="color:#34A853;">l</span><span style="color:#EA4335;">e</span></span>
+            Đăng nhập với Google
+          </button>
+
+          <div style="margin-top: 24px; display: flex; gap: 8px; align-items: flex-start; background: #F1F8F5; border: 1px solid #cce7dd; border-radius: 8px; padding: 12px;">
+            <i class="ph ph-shield-check" style="color: var(--accent,#008060); font-size: 17px; margin-top: 1px;"></i>
+            <span style="font-size: 12.5px; color: var(--sub,#6D7175); line-height: 1.5;">Chỉ những email đã được cấp quyền (allowlist) mới có thể truy cập hệ thống.</span>
+          </div>
+        </div>
+      </div>
+      <div style="background: linear-gradient(150deg, #013d2f, #008060); display: flex; flex-direction: column; justify-content: center; padding: 56px; color: #fff;">
+        <i class="ph-fill ph-storefront" style="font-size: 40px; opacity: .9; margin-bottom: 24px;"></i>
+        <h2 style="font-size: 30px; font-weight: 700; line-height: 1.25; margin: 0 0 16px; letter-spacing: -.5px;">Bán hàng nhanh,<br>quản lý dễ dàng.</h2>
+        <p style="font-size: 15px; opacity: .85; line-height: 1.6; margin: 0 0 32px; max-width: 360px;">Đầy đủ công cụ cho cửa hàng bán lẻ: thu ngân, kho hàng, khách hàng và báo cáo doanh thu — trên một nền tảng.</p>
+        <div style="display: flex; gap: 28px;">
+          <div><div style="font-size: 24px; font-weight: 700;">2.500+</div><div style="font-size: 13px; opacity: .8;">cửa hàng tin dùng</div></div>
+          <div><div style="font-size: 24px; font-weight: 700;">99,9%</div><div style="font-size: 13px; opacity: .8;">thời gian hoạt động</div></div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== FORCE PASSWORD ===================== -->
+  <sc-if value="{{ isForce }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Đổi mật khẩu lần đầu" style="height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px;">
+      <div style="width: 100%; max-width: 420px; background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 14px; box-shadow: var(--shadow-lg,0 6px 24px rgba(0,0,0,.12)); padding: 36px; animation: pop .25s ease;">
+        <div style="width: 48px; height: 48px; border-radius: 12px; background: #F1F8F5; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;"><i class="ph ph-key" style="color: var(--accent,#008060); font-size: 24px;"></i></div>
+        <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 8px; letter-spacing: -.3px;">Đặt mật khẩu mới</h1>
+        <p style="color: var(--sub,#6D7175); font-size: 14px; margin: 0 0 24px; line-height: 1.5;">Đây là lần đăng nhập đầu tiên. Vui lòng tạo mật khẩu mới để bảo mật tài khoản.</p>
+
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Mật khẩu mới</label>
+        <input type="password" value="{{ fpPw }}" onInput="{{ onFpPw }}" placeholder="Tối thiểu 8 ký tự" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; margin-bottom: 16px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" />
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Nhập lại mật khẩu</label>
+        <input type="password" value="{{ fpPw2 }}" onInput="{{ onFpPw2 }}" placeholder="Nhập lại mật khẩu mới" style="width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; margin-bottom: 16px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" />
+
+        <div style="background: #FAFBFB; border-radius: 8px; padding: 12px 14px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--sub,#6D7175);"><i class="ph ph-check" style="color: var(--accent,#008060);"></i>Tối thiểu 8 ký tự</div>
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--sub,#6D7175);"><i class="ph ph-check" style="color: var(--accent,#008060);"></i>Có chữ hoa, chữ thường và số</div>
+        </div>
+        <button onClick="{{ doForce }}" style="width: 100%; height: 46px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Đổi mật khẩu & tiếp tục</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== APP SHELL ===================== -->
+  <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; height: 100vh;">
+
+      <!-- SIDEBAR -->
+      <aside style="width: {{ sidebarW }}; flex-shrink: 0; background: #fff; border-right: 1px solid var(--border,#E1E3E5); display: flex; flex-direction: column; transition: width .18s ease;">
+        <div style="height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--border,#E1E3E5);">
+          <div style="width: 34px; height: 34px; border-radius: 9px; background: var(--accent,#008060); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><i class="ph-fill ph-storefront" style="color: #fff; font-size: 19px;"></i></div>
+          <sc-if value="{{ notCollapsed }}" hint-placeholder-val="{{ true }}"><span style="font-size: 16px; font-weight: 700; letter-spacing: -.3px; white-space: nowrap;">ThiemCun <span style="color: var(--accent,#008060);">POS</span></span></sc-if>
+        </div>
+
+        <nav style="flex: 1; padding: 12px 12px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto;">
+          <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="5">
+            <button onClick="{{ item.onClick }}" data-nav="{{ item.key }}" title="{{ item.label }}" style="display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 12px; border: none; background: {{ item.bg }}; border-radius: 8px; cursor: pointer; color: {{ item.color }}; font-size: 14px; font-weight: {{ item.fw }}; width: 100%; text-align: left;" style-hover="background: #F4F6F6;">
+              <i class="ph {{ item.icon }}" style="font-size: 20px; flex-shrink: 0;"></i>
+              <sc-if value="{{ notCollapsed }}" hint-placeholder-val="{{ true }}"><span style="white-space: nowrap;">{{ item.label }}</span></sc-if>
+            </button>
+          </sc-for>
+        </nav>
+
+        <div style="padding: 12px; border-top: 1px solid var(--border,#E1E3E5);">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px;">
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: #E7F4EF; color: var(--accent,#008060); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0;">{{ profileInitial }}</div>
+            <sc-if value="{{ notCollapsed }}" hint-placeholder-val="{{ true }}">
+              <div style="overflow: hidden;"><div style="font-size: 13px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">{{ profileName }}</div><div style="font-size: 11.5px; color: var(--sub,#6D7175);">{{ roleLabel }}</div></div>
+            </sc-if>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+        <!-- TOPBAR -->
+        <header style="height: 64px; flex-shrink: 0; background: #fff; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; align-items: center; gap: 16px; padding: 0 24px;">
+          <button onClick="{{ toggleSidebar }}" style="width: 36px; height: 36px; border: none; background: transparent; border-radius: 8px; cursor: pointer; color: var(--sub,#6D7175); display: flex; align-items: center; justify-content: center;" style-hover="background: #FAFBFB;"><i class="ph ph-sidebar-simple" style="font-size: 20px;"></i></button>
+          <div style="flex: 1; min-width: 0;">
+            <h1 style="font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -.3px; line-height: 1.2;">{{ pageTitle }}</h1>
+            <div style="font-size: 12.5px; color: var(--sub,#6D7175);">{{ pageSub }}</div>
+          </div>
+
+          <sc-if value="{{ showRoleSwitcher }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; align-items: center; gap: 2px; background: #FAFBFB; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; padding: 3px;">
+              <button onClick="{{ asOwner }}" style="height: 28px; padding: 0 12px; border: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: {{ ownerBtnBg }}; color: {{ ownerBtnColor }};">Chủ</button>
+              <button onClick="{{ asStaff }}" style="height: 28px; padding: 0 12px; border: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: {{ staffBtnBg }}; color: {{ staffBtnColor }};">Nhân viên</button>
+            </div>
+          </sc-if>
+
+          <button style="width: 38px; height: 38px; border: 1px solid var(--border,#E1E3E5); background: #fff; border-radius: 8px; cursor: pointer; color: var(--text,#202223); display: flex; align-items: center; justify-content: center; position: relative;" style-hover="background: #FAFBFB;"><i class="ph ph-bell" style="font-size: 19px;"></i><span style="position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; background: var(--danger,#D72C0D); border-radius: 50%; border: 1.5px solid #fff;"></span></button>
+        </header>
+
+        <!-- CONTENT -->
+        <main style="flex: 1; overflow-y: auto; position: relative;">
+
+          <!-- SKELETON -->
+          <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 28px 32px;">
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                <div style="height: 104px; border-radius: 12px; background: linear-gradient(90deg,#eef0f1 25%,#f6f7f8 37%,#eef0f1 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite;"></div>
+                <div style="height: 104px; border-radius: 12px; background: linear-gradient(90deg,#eef0f1 25%,#f6f7f8 37%,#eef0f1 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite;"></div>
+                <div style="height: 104px; border-radius: 12px; background: linear-gradient(90deg,#eef0f1 25%,#f6f7f8 37%,#eef0f1 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite;"></div>
+                <div style="height: 104px; border-radius: 12px; background: linear-gradient(90deg,#eef0f1 25%,#f6f7f8 37%,#eef0f1 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite;"></div>
+              </div>
+              <div style="height: 320px; border-radius: 12px; background: linear-gradient(90deg,#eef0f1 25%,#f6f7f8 37%,#eef0f1 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite;"></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ notLoading }}" hint-placeholder-val="{{ true }}">
+          <div>
+
+            <!-- ===== DASHBOARD ===== -->
+            <sc-if value="{{ pageDashboard }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Tổng quan" style="padding: 28px 32px; animation: fadeIn .25s ease;">
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                  <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+                    <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 18px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px;">
+                        <span style="font-size: 13px; color: var(--sub,#6D7175); font-weight: 500;">{{ k.label }}</span>
+                        <div style="width: 34px; height: 34px; border-radius: 9px; background: #F1F8F5; display: flex; align-items: center; justify-content: center;"><i class="ph {{ k.icon }}" style="color: var(--accent,#008060); font-size: 18px;"></i></div>
+                      </div>
+                      <div style="font-size: 24px; font-weight: 700; letter-spacing: -.5px; margin-bottom: 6px;">{{ k.value }}</div>
+                      <div style="font-size: 12.5px; font-weight: 600; color: {{ k.deltaColor }};"><i class="ph {{ k.deltaIcon }}"></i> {{ k.delta }} <span style="color: var(--sub,#6D7175); font-weight: 400;">so với hôm qua</span></div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 24px;">
+                  <!-- chart -->
+                  <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 20px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                      <div><div style="font-size: 15px; font-weight: 700;">Doanh thu</div><div style="font-size: 12.5px; color: var(--sub,#6D7175);">Theo thời gian</div></div>
+                      <div style="display: flex; gap: 2px; background: #FAFBFB; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; padding: 3px;">
+                        <sc-for list="{{ chartPeriods }}" as="p" hint-placeholder-count="3">
+                          <button onClick="{{ p.onClick }}" style="height: 28px; padding: 0 14px; border: none; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: {{ p.bg }}; color: {{ p.color }};">{{ p.label }}</button>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: flex-end; gap: 14px; height: 200px; padding-top: 8px;">
+                      <sc-for list="{{ chartBars }}" as="b" hint-placeholder-count="7">
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end;">
+                          <span style="font-size: 11px; font-weight: 600; color: var(--text,#202223);">{{ b.val }}</span>
+                          <div style="width: 100%; max-width: 46px; border-radius: 6px 6px 0 0; height: {{ b.hPct }}; background: {{ b.barBg }}; transition: height .4s ease;"></div>
+                          <span style="font-size: 11.5px; color: var(--sub,#6D7175);">{{ b.label }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <!-- top products -->
+                  <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 20px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                    <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Sản phẩm bán chạy</div>
+                    <div style="font-size: 12.5px; color: var(--sub,#6D7175); margin-bottom: 18px;">Trong tháng này</div>
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                      <sc-for list="{{ topRows }}" as="t" hint-placeholder-count="4">
+                        <div>
+                          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span style="font-size: 13px; font-weight: 600;">{{ t.name }}</span><span style="font-size: 12.5px; color: var(--sub,#6D7175);">{{ t.soldText }}</span></div>
+                          <div style="height: 7px; background: #F1F2F3; border-radius: 4px; overflow: hidden;"><div style="height: 100%; width: {{ t.barW }}; background: var(--accent,#008060); border-radius: 4px;"></div></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px;">
+                  <!-- recent orders -->
+                  <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); overflow: hidden;">
+                    <div style="padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border,#E1E3E5);"><span style="font-size: 15px; font-weight: 700;">Đơn hàng gần đây</span><button onClick="{{ goOrders }}" style="font-size: 13px; color: var(--accent,#008060); background: none; border: none; cursor: pointer; font-weight: 600;">Xem tất cả</button></div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <thead><tr style="background: #FAFBFB;"><th style="text-align: left; padding: 10px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Mã đơn</th><th style="text-align: left; padding: 10px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Khách hàng</th><th style="text-align: left; padding: 10px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Trạng thái</th><th style="text-align: right; padding: 10px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Tổng</th></tr></thead>
+                      <tbody>
+                        <sc-for list="{{ recentRows }}" as="o" hint-placeholder-count="5">
+                          <tr style="border-top: 1px solid #F1F2F3; cursor: pointer;" onClick="{{ o.onClick }}" style-hover="background: #FAFBFB;">
+                            <td style="padding: 12px 20px; font-size: 13px; font-weight: 600;">{{ o.id }}</td>
+                            <td style="padding: 12px 10px; font-size: 13px;">{{ o.customer }}</td>
+                            <td style="padding: 12px 10px;"><span style="font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; color: {{ o.statusColor }}; background: {{ o.statusBg }};">{{ o.status }}</span></td>
+                            <td style="padding: 12px 20px; font-size: 13px; font-weight: 600; text-align: right;">{{ o.totalText }}</td>
+                          </tr>
+                        </sc-for>
+                      </tbody>
+                    </table>
+                  </div>
+                  <!-- staff perf -->
+                  <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 20px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                    <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Hiệu suất nhân viên</div>
+                    <div style="font-size: 12.5px; color: var(--sub,#6D7175); margin-bottom: 18px;">Doanh thu tháng này</div>
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                      <sc-for list="{{ staffRows }}" as="t" hint-placeholder-count="3">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                          <div style="width: 34px; height: 34px; border-radius: 50%; background: #E7F4EF; color: var(--accent,#008060); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;">{{ t.initial }}</div>
+                          <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span style="font-size: 13px; font-weight: 600;">{{ t.name }}</span><span style="font-size: 12.5px; font-weight: 600;">{{ t.revText }}</span></div>
+                            <div style="height: 6px; background: #F1F2F3; border-radius: 4px; overflow: hidden;"><div style="height: 100%; width: {{ t.barW }}; background: var(--accent,#008060); border-radius: 4px;"></div></div>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== POS ===== -->
+            <sc-if value="{{ pagePos }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Bán hàng" style="display: flex; height: 100%; animation: fadeIn .2s ease;">
+                <!-- product area -->
+                <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 20px 24px;">
+                  <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <div style="flex: 1; position: relative;">
+                      <i class="ph ph-magnifying-glass" style="position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--sub,#6D7175); font-size: 17px;"></i>
+                      <input value="{{ posSearch }}" onInput="{{ setPosSearch }}" placeholder="Tìm sản phẩm..." style="width: 100%; height: 42px; padding: 0 14px 0 38px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none; background: #fff;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" />
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap;">
+                    <sc-for list="{{ categories }}" as="c" hint-placeholder-count="5">
+                      <button onClick="{{ c.onClick }}" style="height: 34px; padding: 0 16px; border-radius: 20px; border: 1px solid {{ c.borderColor }}; background: {{ c.bg }}; color: {{ c.color }}; font-size: 13px; font-weight: 600; cursor: pointer;">{{ c.label }}</button>
+                    </sc-for>
+                  </div>
+                  <div style="flex: 1; overflow-y: auto;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px;">
+                      <sc-for list="{{ posProducts }}" as="p" hint-placeholder-count="8">
+                        <button onClick="{{ p.onClick }}" style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 0; cursor: pointer; text-align: left; overflow: hidden; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); display: flex; flex-direction: column;" style-hover="border-color: var(--accent,#008060); transform: translateY(-2px);">
+                          <div style="height: 96px; background: #F1F2F3; display: flex; align-items: center; justify-content: center; position: relative;">
+                            <i class="ph {{ p.catIcon }}" style="font-size: 34px; color: #c4c8cb;"></i>
+                            <sc-if value="{{ p.low }}" hint-placeholder-val="{{ false }}"><span style="position: absolute; top: 8px; right: 8px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 12px; background: #FCEBE9; color: var(--danger,#D72C0D);">Sắp hết</span></sc-if>
+                          </div>
+                          <div style="padding: 12px;">
+                            <div style="font-size: 13px; font-weight: 600; line-height: 1.35; margin-bottom: 8px; min-height: 35px; text-wrap: pretty;">{{ p.name }}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 700; color: var(--accent,#008060);">{{ p.priceText }}</span><span style="font-size: 11.5px; color: var(--sub,#6D7175);">Kho: {{ p.stock }}</span></div>
+                          </div>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- cart -->
+                <div style="width: 380px; flex-shrink: 0; background: #fff; border-left: 1px solid var(--border,#E1E3E5); display: flex; flex-direction: column;">
+                  <div style="padding: 18px 20px; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 10px;"><i class="ph ph-shopping-cart-simple" style="font-size: 20px;"></i><span style="font-size: 15px; font-weight: 700;">Giỏ hàng</span><span style="font-size: 12px; font-weight: 700; background: #E7F4EF; color: var(--accent,#008060); padding: 1px 8px; border-radius: 12px;">{{ cartCount }}</span></div>
+                    <button onClick="{{ clearCart }}" style="font-size: 12.5px; color: var(--sub,#6D7175); background: none; border: none; cursor: pointer; font-weight: 600;">Xoá hết</button>
+                  </div>
+
+                  <div style="flex: 1; overflow-y: auto; padding: 12px 20px;">
+                    <sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ true }}">
+                      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--sub,#6D7175); gap: 12px; padding: 40px 0;">
+                        <i class="ph ph-shopping-cart" style="font-size: 44px; opacity: .4;"></i>
+                        <div style="font-size: 13.5px; text-align: center;">Chưa có sản phẩm.<br>Chạm vào sản phẩm để thêm.</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ cartNotEmpty }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <sc-for list="{{ cart }}" as="i" hint-placeholder-count="3">
+                          <div style="display: flex; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--border,#E1E3E5); border-radius: 10px;">
+                            <div style="flex: 1; min-width: 0;"><div style="font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 2px;">{{ i.name }}</div><div style="font-size: 12px; color: var(--sub,#6D7175);">{{ i.priceText }}</div></div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                              <button onClick="{{ i.onDec }}" style="width: 26px; height: 26px; border: 1px solid var(--border,#E1E3E5); background: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text,#202223);"><i class="ph ph-minus" style="font-size: 13px;"></i></button>
+                              <span style="font-size: 13px; font-weight: 700; min-width: 18px; text-align: center;">{{ i.qty }}</span>
+                              <button onClick="{{ i.onInc }}" style="width: 26px; height: 26px; border: 1px solid var(--border,#E1E3E5); background: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text,#202223);"><i class="ph ph-plus" style="font-size: 13px;"></i></button>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+
+                  <div style="border-top: 1px solid var(--border,#E1E3E5); padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">
+                    <div>
+                      <div style="font-size: 12px; font-weight: 600; color: var(--sub,#6D7175); margin-bottom: 7px;">GIẢM GIÁ / VOUCHER</div>
+                      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <sc-for list="{{ discOpts }}" as="d" hint-placeholder-count="5">
+                          <button onClick="{{ d.onClick }}" style="height: 30px; padding: 0 11px; border-radius: 7px; border: 1px solid {{ d.borderColor }}; background: {{ d.bg }}; color: {{ d.color }}; font-size: 12px; font-weight: 600; cursor: pointer;">{{ d.label }}</button>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div>
+                      <div style="font-size: 12px; font-weight: 600; color: var(--sub,#6D7175); margin-bottom: 7px;">KHÁCH HÀNG</div>
+                      <select value="{{ posCustomer }}" onChange="{{ setPosCustomer }}" style="width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 13px; background: #fff; cursor: pointer; outline: none;">
+                        <option value="le">Khách lẻ</option>
+                        <sc-for list="{{ customersOptions }}" as="c" hint-placeholder-count="3"><option value="{{ c.id }}">{{ c.name }}</option></sc-for>
+                      </select>
+                    </div>
+                    <div>
+                      <div style="font-size: 12px; font-weight: 600; color: var(--sub,#6D7175); margin-bottom: 7px;">THANH TOÁN</div>
+                      <div style="display: flex; gap: 8px;">
+                        <button onClick="{{ payCashClick }}" style="flex: 1; height: 38px; border-radius: 8px; border: 1px solid {{ cashBorder }}; background: {{ cashBg }}; color: {{ cashColor }}; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="ph ph-money"></i> Tiền mặt</button>
+                        <button onClick="{{ payBankClick }}" style="flex: 1; height: 38px; border-radius: 8px; border: 1px solid {{ bankBorder }}; background: {{ bankBg }}; color: {{ bankColor }}; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="ph ph-bank"></i> Chuyển khoản</button>
+                      </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px;">
+                      <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--sub,#6D7175);"><span>Tạm tính</span><span>{{ subText }}</span></div>
+                      <sc-if value="{{ hasDisc }}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--danger,#D72C0D);"><span>Giảm giá</span><span>{{ discText }}</span></div></sc-if>
+                      <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; margin-top: 2px;"><span>Tổng cộng</span><span style="color: var(--accent,#008060);">{{ totalText }}</span></div>
+                    </div>
+                    <button onClick="{{ checkout }}" style="width: 100%; height: 48px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;" style-hover="background: var(--accent-d,#006e52);"><i class="ph ph-check-circle" style="font-size: 19px;"></i> Thanh toán</button>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== PRODUCTS ===== -->
+            <sc-if value="{{ pageProducts }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Sản phẩm" style="padding: 28px 32px; animation: fadeIn .25s ease;">
+                <sc-if value="{{ hasLowStock }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; align-items: center; gap: 12px; background: #FBF3E0; border: 1px solid #f0dba8; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+                    <i class="ph ph-warning" style="color: var(--warn,#B98900); font-size: 20px;"></i>
+                    <span style="font-size: 13.5px; font-weight: 500;"><strong>{{ lowStockCount }} sản phẩm</strong> sắp hết hàng. Hãy nhập thêm để không gián đoạn bán hàng.</span>
+                  </div>
+                </sc-if>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px;">
+                  <div style="flex: 1; max-width: 360px; position: relative;">
+                    <i class="ph ph-magnifying-glass" style="position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--sub,#6D7175); font-size: 17px;"></i>
+                    <input value="{{ prodSearch }}" onInput="{{ setProdSearch }}" placeholder="Tìm sản phẩm..." style="width: 100%; height: 42px; padding: 0 14px 0 38px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none; background: #fff;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" />
+                  </div>
+                  <button onClick="{{ openAddProduct }}" style="height: 42px; padding: 0 18px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;" style-hover="background: var(--accent-d,#006e52);"><i class="ph ph-plus" style="font-size: 17px;"></i> Thêm sản phẩm</button>
+                </div>
+                <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); overflow: hidden;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead><tr style="background: #FAFBFB;"><th style="text-align: left; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Sản phẩm</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Danh mục</th><th style="text-align: right; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Giá bán</th><th style="text-align: center; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Tồn kho</th><th style="text-align: right; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Thao tác</th></tr></thead>
+                    <tbody>
+                      <sc-for list="{{ prodRows }}" as="p" hint-placeholder-count="8">
+                        <tr style="border-top: 1px solid #F1F2F3;" style-hover="background: #FAFBFB;">
+                          <td style="padding: 12px 20px;"><div style="display: flex; align-items: center; gap: 12px;"><div style="width: 40px; height: 40px; border-radius: 8px; background: #F1F2F3; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><i class="ph {{ p.catIcon }}" style="font-size: 19px; color: #b4b9bc;"></i></div><span style="font-size: 13.5px; font-weight: 600;">{{ p.name }}</span></div></td>
+                          <td style="padding: 12px;"><span style="font-size: 12px; font-weight: 600; color: var(--sub,#6D7175); background: #F1F2F3; padding: 3px 10px; border-radius: 14px;">{{ p.catLabel }}</span></td>
+                          <td style="padding: 12px; font-size: 13.5px; font-weight: 600; text-align: right;">{{ p.priceText }}</td>
+                          <td style="padding: 12px; text-align: center;"><span style="font-size: 13px; font-weight: 700; padding: 3px 11px; border-radius: 14px; color: {{ p.stockColor }}; background: {{ p.stockBg }};">{{ p.stock }}</span></td>
+                          <td style="padding: 12px 20px;"><div style="display: flex; gap: 6px; justify-content: flex-end;"><button onClick="{{ p.onEdit }}" title="Sửa" style="width: 32px; height: 32px; border: 1px solid var(--border,#E1E3E5); background: #fff; border-radius: 7px; cursor: pointer; color: var(--sub,#6D7175); display: flex; align-items: center; justify-content: center;" style-hover="color: var(--accent,#008060); border-color: var(--accent,#008060);"><i class="ph ph-pencil-simple" style="font-size: 16px;"></i></button><button onClick="{{ p.onDelete }}" title="Xoá" style="width: 32px; height: 32px; border: 1px solid var(--border,#E1E3E5); background: #fff; border-radius: 7px; cursor: pointer; color: var(--sub,#6D7175); display: flex; align-items: center; justify-content: center;" style-hover="color: var(--danger,#D72C0D); border-color: var(--danger,#D72C0D);"><i class="ph ph-trash" style="font-size: 16px;"></i></button></div></td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== ORDERS ===== -->
+            <sc-if value="{{ pageOrders }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Đơn hàng" style="padding: 28px 32px; animation: fadeIn .25s ease;">
+                <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); overflow: hidden;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead><tr style="background: #FAFBFB;"><th style="text-align: left; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Mã đơn</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Khách hàng</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Sản phẩm</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Thời gian</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Trạng thái</th><th style="text-align: right; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Tổng</th></tr></thead>
+                    <tbody>
+                      <sc-for list="{{ orderRows }}" as="o" hint-placeholder-count="6">
+                        <tr onClick="{{ o.onClick }}" style="border-top: 1px solid #F1F2F3; cursor: pointer;" style-hover="background: #FAFBFB;">
+                          <td style="padding: 14px 20px; font-size: 13px; font-weight: 700; color: var(--accent,#008060);">{{ o.id }}</td>
+                          <td style="padding: 14px 12px; font-size: 13px;">{{ o.customer }}</td>
+                          <td style="padding: 14px 12px; font-size: 13px; color: var(--sub,#6D7175);">{{ o.itemsText }}</td>
+                          <td style="padding: 14px 12px; font-size: 13px; color: var(--sub,#6D7175);">{{ o.date }}</td>
+                          <td style="padding: 14px 12px;"><span style="font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; color: {{ o.statusColor }}; background: {{ o.statusBg }};">{{ o.status }}</span></td>
+                          <td style="padding: 14px 20px; font-size: 13.5px; font-weight: 700; text-align: right;">{{ o.totalText }}</td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== CUSTOMERS ===== -->
+            <sc-if value="{{ pageCustomers }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Khách hàng" style="padding: 28px 32px; animation: fadeIn .25s ease;">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 18px;">
+                  <button onClick="{{ openAddCustomer }}" style="height: 42px; padding: 0 18px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;" style-hover="background: var(--accent-d,#006e52);"><i class="ph ph-plus" style="font-size: 17px;"></i> Thêm khách hàng</button>
+                </div>
+                <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); overflow: hidden;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead><tr style="background: #FAFBFB;"><th style="text-align: left; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Khách hàng</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Số điện thoại</th><th style="text-align: center; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Số lượt mua</th><th style="text-align: right; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Tổng chi tiêu</th></tr></thead>
+                    <tbody>
+                      <sc-for list="{{ custRows }}" as="c" hint-placeholder-count="5">
+                        <tr onClick="{{ c.onClick }}" style="border-top: 1px solid #F1F2F3; cursor: pointer;" style-hover="background: #FAFBFB;">
+                          <td style="padding: 12px 20px;"><div style="display: flex; align-items: center; gap: 12px;"><div style="width: 38px; height: 38px; border-radius: 50%; background: #E7F4EF; color: var(--accent,#008060); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">{{ c.initial }}</div><span style="font-size: 13.5px; font-weight: 600;">{{ c.name }}</span></div></td>
+                          <td style="padding: 12px; font-size: 13px; color: var(--sub,#6D7175);">{{ c.phone }}</td>
+                          <td style="padding: 12px; font-size: 13px; text-align: center;">{{ c.visits }}</td>
+                          <td style="padding: 12px 20px; font-size: 13.5px; font-weight: 700; text-align: right;">{{ c.spentText }}</td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== EMPLOYEES ===== -->
+            <sc-if value="{{ pageEmployees }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Nhân viên" style="padding: 28px 32px; animation: fadeIn .25s ease;">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 18px;">
+                  <button onClick="{{ openInvite }}" style="height: 42px; padding: 0 18px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;" style-hover="background: var(--accent-d,#006e52);"><i class="ph ph-paper-plane-tilt" style="font-size: 17px;"></i> Mời nhân viên</button>
+                </div>
+                <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); overflow: hidden;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead><tr style="background: #FAFBFB;"><th style="text-align: left; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Nhân viên</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Vai trò</th><th style="text-align: left; padding: 12px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Trạng thái</th><th style="text-align: right; padding: 12px 20px; font-size: 11.5px; color: var(--sub,#6D7175); font-weight: 600; text-transform: uppercase; letter-spacing: .3px;">Truy cập</th></tr></thead>
+                    <tbody>
+                      <sc-for list="{{ empRows }}" as="e" hint-placeholder-count="4">
+                        <tr style="border-top: 1px solid #F1F2F3;" style-hover="background: #FAFBFB;">
+                          <td style="padding: 14px 20px;"><div style="display: flex; align-items: center; gap: 12px;"><div style="width: 38px; height: 38px; border-radius: 50%; background: #E7F4EF; color: var(--accent,#008060); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">{{ e.initial }}</div><div><div style="font-size: 13.5px; font-weight: 600;">{{ e.name }}</div><div style="font-size: 12px; color: var(--sub,#6D7175);">{{ e.email }}</div></div></div></td>
+                          <td style="padding: 14px 12px; font-size: 13px;">{{ e.role }}</td>
+                          <td style="padding: 14px 12px;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: {{ e.statusColor }};"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ e.statusColor }};"></span>{{ e.statusText }}</span></td>
+                          <td style="padding: 14px 20px; text-align: right;">
+                            <sc-if value="{{ e.canToggle }}" hint-placeholder-val="{{ true }}"><button onClick="{{ e.onToggle }}" style="width: 44px; height: 24px; border-radius: 14px; border: none; cursor: pointer; position: relative; background: {{ e.toggleBg }}; transition: background .15s;"><span style="position: absolute; top: 3px; left: {{ e.knobLeft }}; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2);"></span></button></sc-if>
+                            <sc-if value="{{ e.isOwner }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: var(--sub,#6D7175);"><i class="ph ph-lock-simple"></i> Toàn quyền</span></sc-if>
+                          </td>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== SETTINGS ===== -->
+            <sc-if value="{{ pageSettings }}" hint-placeholder-val="{{ false }}">
+              <div data-screen-label="Cài đặt" style="padding: 28px 32px; max-width: 760px; animation: fadeIn .25s ease;">
+                <div style="display: flex; gap: 4px; border-bottom: 1px solid var(--border,#E1E3E5); margin-bottom: 24px;">
+                  <button onClick="{{ tabProfileClick }}" style="height: 42px; padding: 0 16px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 600; color: {{ tabProfileColor }}; border-bottom: 2px solid {{ tabProfileBorder }};">Hồ sơ</button>
+                  <button onClick="{{ tabSecurityClick }}" style="height: 42px; padding: 0 16px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 600; color: {{ tabSecurityColor }}; border-bottom: 2px solid {{ tabSecurityBorder }};">Bảo mật & 2FA</button>
+                  <button onClick="{{ tabShopClick }}" style="height: 42px; padding: 0 16px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 600; color: {{ tabShopColor }}; border-bottom: 2px solid {{ tabShopBorder }};">Thông tin cửa hàng</button>
+                </div>
+
+                <sc-if value="{{ setTabProfile }}" hint-placeholder-val="{{ true }}">
+                  <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 24px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;"><div style="width: 60px; height: 60px; border-radius: 50%; background: #E7F4EF; color: var(--accent,#008060); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 22px;">{{ profileInitial }}</div><div><div style="font-size: 16px; font-weight: 700;">{{ profileName }}</div><div style="font-size: 13px; color: var(--sub,#6D7175);">{{ roleLabel }}</div></div></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                      <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Họ và tên</label><input value="{{ profileNameVal }}" onInput="{{ onProfName }}" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                      <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Số điện thoại</label><input value="{{ profilePhoneVal }}" onInput="{{ onProfPhone }}" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                      <div style="grid-column: 1 / -1;"><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Email <span style="color: var(--sub,#6D7175); font-weight: 400;">(không thể thay đổi)</span></label><input value="{{ profileEmailVal }}" disabled style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; background: #FAFBFB; color: var(--sub,#6D7175);" /></div>
+                    </div>
+                    <div style="margin-top: 24px; display: flex; justify-content: flex-end;"><button onClick="{{ saveSettings }}" style="height: 42px; padding: 0 22px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Lưu thay đổi</button></div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ setTabSecurity }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 24px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                      <div style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Đổi mật khẩu</div>
+                      <div style="font-size: 13px; color: var(--sub,#6D7175); margin-bottom: 18px;">Nên đổi mật khẩu định kỳ để bảo mật tài khoản.</div>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div style="grid-column: 1 / -1;"><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Mật khẩu hiện tại</label><input type="password" placeholder="••••••••" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                        <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Mật khẩu mới</label><input type="password" placeholder="••••••••" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                        <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Nhập lại</label><input type="password" placeholder="••••••••" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                      </div>
+                      <div style="margin-top: 20px; display: flex; justify-content: flex-end;"><button onClick="{{ saveSettings }}" style="height: 42px; padding: 0 22px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Cập nhật mật khẩu</button></div>
+                    </div>
+                    <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 24px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08)); display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+                      <div style="display: flex; gap: 14px;"><div style="width: 44px; height: 44px; border-radius: 10px; background: #F1F8F5; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><i class="ph ph-shield-check" style="color: var(--accent,#008060); font-size: 22px;"></i></div><div><div style="font-size: 15px; font-weight: 700; margin-bottom: 3px;">Xác thực 2 lớp (2FA)</div><div style="font-size: 13px; color: var(--sub,#6D7175); line-height: 1.45; max-width: 380px;">{{ mfaDesc }}</div></div></div>
+                      <button onClick="{{ toggleMfa }}" style="width: 50px; height: 28px; border-radius: 16px; border: none; cursor: pointer; position: relative; flex-shrink: 0; background: {{ mfaToggleBg }};"><span style="position: absolute; top: 3px; left: {{ mfaKnobLeft }}; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: left .15s;"></span></button>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ setTabShop }}" hint-placeholder-val="{{ false }}">
+                  <div style="background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 12px; padding: 24px; box-shadow: var(--shadow,0 1px 3px rgba(0,0,0,.08));">
+                    <div style="display: flex; gap: 20px; margin-bottom: 24px; align-items: flex-start;">
+                      <div style="width: 84px; height: 84px; border-radius: 12px; border: 1.5px dashed var(--border,#E1E3E5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--sub,#6D7175); cursor: pointer; flex-shrink: 0;"><i class="ph ph-image" style="font-size: 22px;"></i><span style="font-size: 10px; font-family: monospace;">logo</span></div>
+                      <div style="flex: 1; padding-top: 4px;"><div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Logo cửa hàng</div><div style="font-size: 12.5px; color: var(--sub,#6D7175); line-height: 1.5;">Hiển thị trên hoá đơn và trang đăng nhập. PNG/JPG, tối thiểu 256×256px.</div></div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                      <div style="grid-column: 1 / -1;"><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Tên cửa hàng</label><input value="{{ shopNameVal }}" onInput="{{ onShopName }}" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                      <div style="grid-column: 1 / -1;"><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Địa chỉ</label><input value="{{ shopAddrVal }}" onInput="{{ onShopAddr }}" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                      <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Hotline</label><input value="{{ shopHotlineVal }}" onInput="{{ onShopHotline }}" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+                      <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Email liên hệ</label><input value="{{ shopEmailVal }}" disabled style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; background: #FAFBFB; color: var(--sub,#6D7175);" /></div>
+                    </div>
+                    <div style="margin-top: 24px; display: flex; justify-content: flex-end;"><button onClick="{{ saveSettings }}" style="height: 42px; padding: 0 22px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Lưu thay đổi</button></div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+          </div>
+          </sc-if>
+        </main>
+      </div>
+    </div>
+
+    <!-- ORDER DETAIL SLIDE-IN -->
+    <sc-if value="{{ odOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position: fixed; inset: 0; z-index: 40;">
+        <div onClick="{{ closeOrder }}" style="position: absolute; inset: 0; background: rgba(0,0,0,.32); animation: fadeIn .2s ease;"></div>
+        <div style="position: absolute; top: 0; right: 0; height: 100%; width: 440px; background: #fff; box-shadow: -8px 0 28px rgba(0,0,0,.14); animation: slideInR .25s ease; display: flex; flex-direction: column;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; justify-content: space-between; align-items: center;">
+            <div><div style="font-size: 17px; font-weight: 700;">{{ odId }}</div><div style="font-size: 12.5px; color: var(--sub,#6D7175);">{{ odDate }}</div></div>
+            <button onClick="{{ closeOrder }}" style="width: 34px; height: 34px; border: none; background: #FAFBFB; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--sub,#6D7175);"><i class="ph ph-x" style="font-size: 18px;"></i></button>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 24px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;"><span style="font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 20px; color: {{ odStatusColor }}; background: {{ odStatusBg }};">{{ odStatus }}</span><span style="font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 20px; color: var(--sub,#6D7175); background: #F1F2F3;">{{ odPayment }}</span></div>
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
+              <div style="display: flex; justify-content: space-between;"><span style="font-size: 13px; color: var(--sub,#6D7175);">Khách hàng</span><span style="font-size: 13px; font-weight: 600;">{{ odCustomer }}</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="font-size: 13px; color: var(--sub,#6D7175);">Nhân viên</span><span style="font-size: 13px; font-weight: 600;">{{ odStaff }}</span></div>
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--sub,#6D7175); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 12px;">Chi tiết sản phẩm</div>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+              <sc-for list="{{ odItems }}" as="i" hint-placeholder-count="2">
+                <div style="display: flex; justify-content: space-between; align-items: center;"><div><div style="font-size: 13.5px; font-weight: 600;">{{ i.name }}</div><div style="font-size: 12px; color: var(--sub,#6D7175);">{{ i.priceText }} × {{ i.qty }}</div></div><span style="font-size: 13.5px; font-weight: 600;">{{ i.lineText }}</span></div>
+              </sc-for>
+            </div>
+            <div style="border-top: 1px solid var(--border,#E1E3E5); padding-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--sub,#6D7175);"><span>Tạm tính</span><span>{{ odSubText }}</span></div>
+              <sc-if value="{{ odHasDisc }}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--danger,#D72C0D);"><span>Giảm giá</span><span>{{ odDiscText }}</span></div></sc-if>
+              <div style="display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; margin-top: 4px;"><span>Tổng cộng</span><span style="color: var(--accent,#008060);">{{ odTotalText }}</span></div>
+            </div>
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border,#E1E3E5);"><button onClick="{{ odPrint }}" style="width: 100%; height: 44px; background: #fff; color: var(--text,#202223); border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;" style-hover="background: #FAFBFB;"><i class="ph ph-printer" style="font-size: 18px;"></i> In hoá đơn</button></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- CUSTOMER DETAIL SLIDE-IN -->
+    <sc-if value="{{ cdOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position: fixed; inset: 0; z-index: 40;">
+        <div onClick="{{ closeCustomer }}" style="position: absolute; inset: 0; background: rgba(0,0,0,.32); animation: fadeIn .2s ease;"></div>
+        <div style="position: absolute; top: 0; right: 0; height: 100%; width: 440px; background: #fff; box-shadow: -8px 0 28px rgba(0,0,0,.14); animation: slideInR .25s ease; display: flex; flex-direction: column;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 16px; font-weight: 700;">Hồ sơ khách hàng</span>
+            <button onClick="{{ closeCustomer }}" style="width: 34px; height: 34px; border: none; background: #FAFBFB; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--sub,#6D7175);"><i class="ph ph-x" style="font-size: 18px;"></i></button>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 24px;">
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px;"><div style="width: 56px; height: 56px; border-radius: 50%; background: #E7F4EF; color: var(--accent,#008060); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">{{ cdInitial }}</div><div><div style="font-size: 17px; font-weight: 700;">{{ cdName }}</div><div style="font-size: 13px; color: var(--sub,#6D7175);">{{ cdPhone }}</div></div></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+              <div style="background: #FAFBFB; border-radius: 10px; padding: 14px;"><div style="font-size: 12px; color: var(--sub,#6D7175); margin-bottom: 4px;">Tổng chi tiêu</div><div style="font-size: 17px; font-weight: 700; color: var(--accent,#008060);">{{ cdSpentText }}</div></div>
+              <div style="background: #FAFBFB; border-radius: 10px; padding: 14px;"><div style="font-size: 12px; color: var(--sub,#6D7175); margin-bottom: 4px;">Số lượt mua</div><div style="font-size: 17px; font-weight: 700;">{{ cdVisits }}</div></div>
+            </div>
+            <div style="font-size: 12px; color: var(--sub,#6D7175); margin-bottom: 16px;">Khách hàng từ {{ cdJoined }}</div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--sub,#6D7175); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 12px;">Lịch sử mua hàng</div>
+            <sc-if value="{{ cdHasHistory }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <sc-for list="{{ cdHistory }}" as="h" hint-placeholder-count="3">
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid var(--border,#E1E3E5); border-radius: 10px;"><div><div style="font-size: 13px; font-weight: 700; color: var(--accent,#008060);">{{ h.id }}</div><div style="font-size: 12px; color: var(--sub,#6D7175);">{{ h.date }}</div></div><span style="font-size: 13.5px; font-weight: 600;">{{ h.totalText }}</span></div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ cdNoHistory }}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; color: var(--sub,#6D7175); text-align: center; padding: 20px 0;">Chưa có giao dịch nào.</div></sc-if>
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border,#E1E3E5);"><button onClick="{{ deleteCurrentCustomer }}" style="width: 100%; height: 44px; background: #fff; color: var(--danger,#D72C0D); border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;" style-hover="border-color: var(--danger,#D72C0D); background: #FCEBE9;"><i class="ph ph-trash" style="font-size: 17px;"></i> Xoá khách hàng</button></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- PRODUCT MODAL -->
+    <sc-if value="{{ pmOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px;">
+        <div onClick="{{ closeProductModal }}" style="position: absolute; inset: 0; background: rgba(0,0,0,.35); animation: fadeIn .2s ease;"></div>
+        <div style="position: relative; width: 100%; max-width: 480px; background: #fff; border-radius: 14px; box-shadow: var(--shadow-lg,0 6px 24px rgba(0,0,0,.12)); animation: pop .22s ease;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 17px; font-weight: 700;">{{ pmTitle }}</span><button onClick="{{ closeProductModal }}" style="width: 34px; height: 34px; border: none; background: #FAFBFB; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--sub,#6D7175);"><i class="ph ph-x" style="font-size: 18px;"></i></button></div>
+          <div style="padding: 24px;">
+            <div style="display: flex; gap: 16px; margin-bottom: 18px; align-items: center;">
+              <div style="width: 72px; height: 72px; border-radius: 10px; border: 1.5px dashed var(--border,#E1E3E5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--sub,#6D7175); cursor: pointer; flex-shrink: 0;"><i class="ph ph-camera" style="font-size: 20px;"></i><span style="font-size: 9.5px; font-family: monospace;">ảnh SP</span></div>
+              <div style="flex: 1;"><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Tên sản phẩm</label><input value="{{ pmName }}" onInput="{{ pmNameInput }}" placeholder="VD: Áo thun cotton" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+            </div>
+            <div style="margin-bottom: 16px;"><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Danh mục</label>
+              <select value="{{ pmCat }}" onChange="{{ pmCatInput }}" style="width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; background: #fff; cursor: pointer; outline: none;"><option>Thời trang</option><option>Phụ kiện</option><option>Tạp hóa</option><option>Gia dụng</option></select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Giá bán (đ)</label><input value="{{ pmPrice }}" onInput="{{ pmPriceInput }}" type="number" placeholder="0" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+              <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Tồn kho</label><input value="{{ pmStock }}" onInput="{{ pmStockInput }}" type="number" placeholder="0" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+              <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Ngưỡng cảnh báo</label><input value="{{ pmThreshold }}" onInput="{{ pmThresholdInput }}" type="number" placeholder="5" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+            </div>
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border,#E1E3E5); display: flex; gap: 12px; justify-content: flex-end;"><button onClick="{{ closeProductModal }}" style="height: 42px; padding: 0 20px; background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: #FAFBFB;">Huỷ</button><button onClick="{{ saveProduct }}" style="height: 42px; padding: 0 22px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Lưu sản phẩm</button></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- CUSTOMER MODAL -->
+    <sc-if value="{{ cmOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px;">
+        <div onClick="{{ closeCustomerModal }}" style="position: absolute; inset: 0; background: rgba(0,0,0,.35); animation: fadeIn .2s ease;"></div>
+        <div style="position: relative; width: 100%; max-width: 440px; background: #fff; border-radius: 14px; box-shadow: var(--shadow-lg,0 6px 24px rgba(0,0,0,.12)); animation: pop .22s ease;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 17px; font-weight: 700;">Thêm khách hàng</span><button onClick="{{ closeCustomerModal }}" style="width: 34px; height: 34px; border: none; background: #FAFBFB; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--sub,#6D7175);"><i class="ph ph-x" style="font-size: 18px;"></i></button></div>
+          <div style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+            <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Họ và tên</label><input value="{{ cmName }}" onInput="{{ cmNameInput }}" placeholder="VD: Nguyễn Văn A" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+            <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Số điện thoại</label><input value="{{ cmPhone }}" onInput="{{ cmPhoneInput }}" placeholder="VD: 0901 234 567" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border,#E1E3E5); display: flex; gap: 12px; justify-content: flex-end;"><button onClick="{{ closeCustomerModal }}" style="height: 42px; padding: 0 20px; background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: #FAFBFB;">Huỷ</button><button onClick="{{ saveCustomer }}" style="height: 42px; padding: 0 22px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: var(--accent-d,#006e52);">Thêm</button></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- INVITE MODAL -->
+    <sc-if value="{{ inviteOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px;">
+        <div onClick="{{ closeInvite }}" style="position: absolute; inset: 0; background: rgba(0,0,0,.35); animation: fadeIn .2s ease;"></div>
+        <div style="position: relative; width: 100%; max-width: 440px; background: #fff; border-radius: 14px; box-shadow: var(--shadow-lg,0 6px 24px rgba(0,0,0,.12)); animation: pop .22s ease;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border,#E1E3E5); display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 17px; font-weight: 700;">Mời nhân viên</span><button onClick="{{ closeInvite }}" style="width: 34px; height: 34px; border: none; background: #FAFBFB; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--sub,#6D7175);"><i class="ph ph-x" style="font-size: 18px;"></i></button></div>
+          <div style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+            <p style="font-size: 13px; color: var(--sub,#6D7175); margin: 0; line-height: 1.5;">Lời mời sẽ được gửi qua email. Nhân viên đặt mật khẩu khi đăng nhập lần đầu.</p>
+            <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Email</label><input value="{{ inviteEmail }}" onInput="{{ inviteEmailInput }}" placeholder="nhanvien@thiemcun.vn" style="width: 100%; height: 42px; padding: 0 13px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; outline: none;" style-focus="border-color: var(--accent,#008060); box-shadow: 0 0 0 3px rgba(0,128,96,.12);" /></div>
+            <div><label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Vai trò</label><select value="{{ inviteRole }}" onChange="{{ inviteRoleInput }}" style="width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; background: #fff; cursor: pointer; outline: none;"><option>Nhân viên bán hàng</option><option>Thu ngân</option><option>Quản lý</option></select></div>
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border,#E1E3E5); display: flex; gap: 12px; justify-content: flex-end;"><button onClick="{{ closeInvite }}" style="height: 42px; padding: 0 20px; background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: #FAFBFB;">Huỷ</button><button onClick="{{ sendInvite }}" style="height: 42px; padding: 0 22px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 7px;" style-hover="background: var(--accent-d,#006e52);"><i class="ph ph-paper-plane-tilt"></i> Gửi lời mời</button></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- RECEIPT MODAL -->
+    <sc-if value="{{ rcptOpen }}" hint-placeholder-val="{{ false }}">
+      <div class="no-print" style="position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px;">
+        <div onClick="{{ closeReceipt }}" style="position: absolute; inset: 0; background: rgba(0,0,0,.4); animation: fadeIn .2s ease;"></div>
+        <div style="position: relative; width: 100%; max-width: 360px; background: #fff; border-radius: 14px; box-shadow: var(--shadow-lg,0 6px 24px rgba(0,0,0,.12)); animation: pop .22s ease; overflow: hidden;">
+          <div style="padding: 28px 28px 20px; text-align: center; border-bottom: 1px dashed var(--border,#E1E3E5);">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: #E7F4EF; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;"><i class="ph-fill ph-check-circle" style="color: var(--accent,#008060); font-size: 28px;"></i></div>
+            <div style="font-size: 17px; font-weight: 700; margin-bottom: 4px;">Thanh toán thành công</div>
+            <div style="font-size: 13px; color: var(--sub,#6D7175);">{{ rcId }} · {{ rcDate }}</div>
+          </div>
+          <div style="padding: 20px 28px;">
+            <div style="display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px;">
+              <sc-for list="{{ rcItems }}" as="i" hint-placeholder-count="2">
+                <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>{{ i.name }} <span style="color: var(--sub,#6D7175);">×{{ i.qty }}</span></span><span style="font-weight: 600;">{{ i.lineText }}</span></div>
+              </sc-for>
+            </div>
+            <div style="border-top: 1px dashed var(--border,#E1E3E5); padding-top: 14px; display: flex; flex-direction: column; gap: 7px;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--sub,#6D7175);"><span>Tạm tính</span><span>{{ rcSubText }}</span></div>
+              <sc-if value="{{ rcHasDisc }}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--danger,#D72C0D);"><span>Giảm giá</span><span>{{ rcDiscText }}</span></div></sc-if>
+              <div style="display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; margin-top: 2px;"><span>Tổng cộng</span><span style="color: var(--accent,#008060);">{{ rcTotalText }}</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--sub,#6D7175); margin-top: 2px;"><span>Phương thức</span><span>{{ rcPayment }}</span></div>
+            </div>
+          </div>
+          <div style="padding: 0 24px 24px; display: flex; gap: 12px;"><button onClick="{{ closeReceipt }}" style="flex: 1; height: 44px; background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;" style-hover="background: #FAFBFB;">Đóng</button><button onClick="{{ printReceipt }}" style="flex: 1; height: 44px; background: var(--accent,#008060); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;" style-hover="background: var(--accent-d,#006e52);"><i class="ph ph-printer" style="font-size: 17px;"></i> In hoá đơn</button></div>
+        </div>
+      </div>
+      <!-- printable receipt -->
+      <div id="receipt-print">
+        <div style="max-width: 320px; margin: 0 auto; font-family: 'Inter', sans-serif; color: #000;">
+          <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 20px; font-weight: 700;">{{ shopName }}</div>
+            <div style="font-size: 12px; margin-top: 4px;">{{ shopAddrPrint }}</div>
+            <div style="font-size: 12px;">Hotline: {{ shopHotlinePrint }}</div>
+          </div>
+          <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 8px 0; margin-bottom: 10px; font-size: 12px; display: flex; justify-content: space-between;"><span>{{ rcId }}</span><span>{{ rcDate }}</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;">
+            <sc-for list="{{ rcItems }}" as="i" hint-placeholder-count="2">
+              <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>{{ i.name }} ×{{ i.qty }}</span><span>{{ i.lineText }}</span></div>
+            </sc-for>
+          </div>
+          <div style="border-top: 1px dashed #000; padding-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 5px;">
+            <div style="display: flex; justify-content: space-between;"><span>Tạm tính</span><span>{{ rcSubText }}</span></div>
+            <sc-if value="{{ rcHasDisc }}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: space-between;"><span>Giảm giá</span><span>{{ rcDiscText }}</span></div></sc-if>
+            <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 15px;"><span>TỔNG CỘNG</span><span>{{ rcTotalText }}</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Thanh toán</span><span>{{ rcPayment }}</span></div>
+          </div>
+          <div style="text-align: center; margin-top: 18px; font-size: 12px;">Cảm ơn quý khách & hẹn gặp lại!</div>
+        </div>
+      </div>
+    </sc-if>
+
+  </sc-if>
+
+  <!-- TOASTS -->
+  <div style="position: fixed; bottom: 24px; right: 24px; z-index: 80; display: flex; flex-direction: column; gap: 10px;">
+    <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
+      <div style="display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--border,#E1E3E5); border-radius: 10px; padding: 13px 16px; box-shadow: var(--shadow-lg,0 6px 24px rgba(0,0,0,.12)); min-width: 260px; animation: toastIn .25s ease;">
+        <i class="ph-fill {{ t.icon }}" style="font-size: 19px; color: {{ t.color }};"></i>
+        <span style="font-size: 13.5px; font-weight: 500;">{{ t.msg }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#008060&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Giao diện&quot;},&quot;defaultRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;owner&quot;,&quot;staff&quot;],&quot;default&quot;:&quot;owner&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Giao diện&quot;},&quot;showRoleSwitcher&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Giao diện&quot;}}">
+class Component extends DCLogic {
+  state = {
+    stage: 'login',
+    page: 'dashboard',
+    role: this.props.defaultRole || 'owner',
+    collapsed: false,
+    loading: false,
+    loginEmail: 'chu@thiemcun.vn',
+    loginPw: '',
+    fpPw: '',
+    fpPw2: '',
+    cart: [],
+    posCategory: 'all',
+    posSearch: '',
+    discount: 'none',
+    payMethod: 'cash',
+    posCustomer: 'le',
+    chartPeriod: 'day',
+    prodSearch: '',
+    orderDetailId: null,
+    customerDetailId: null,
+    receiptOrder: null,
+    pm: null,
+    cm: null,
+    invite: null,
+    setTab: 'profile',
+    mfa: true,
+    toasts: [],
+    products: [
+      { id: 'p1', name: 'Áo thun cotton trắng', price: 159000, stock: 24, cat: 'Thời trang', threshold: 5 },
+      { id: 'p2', name: 'Quần jeans nam slim', price: 359000, stock: 12, cat: 'Thời trang', threshold: 5 },
+      { id: 'p3', name: 'Váy hoa nữ mùa hè', price: 289000, stock: 8, cat: 'Thời trang', threshold: 5 },
+      { id: 'p4', name: 'Áo khoác gió 2 lớp', price: 459000, stock: 3, cat: 'Thời trang', threshold: 5 },
+      { id: 'p5', name: 'Nón lưỡi trai basic', price: 89000, stock: 30, cat: 'Phụ kiện', threshold: 8 },
+      { id: 'p6', name: 'Túi vải canvas', price: 129000, stock: 5, cat: 'Phụ kiện', threshold: 6 },
+      { id: 'p7', name: 'Tất cổ ngắn (3 đôi)', price: 45000, stock: 60, cat: 'Phụ kiện', threshold: 10 },
+      { id: 'p8', name: 'Nước rửa tay Lifebuoy', price: 35000, stock: 40, cat: 'Tạp hóa', threshold: 10 },
+      { id: 'p9', name: 'Mì Hảo Hảo (thùng 30)', price: 110000, stock: 18, cat: 'Tạp hóa', threshold: 6 },
+      { id: 'p10', name: 'Coca-Cola 1.5L', price: 18000, stock: 4, cat: 'Tạp hóa', threshold: 12 },
+      { id: 'p11', name: 'Bánh Oreo socola', price: 22000, stock: 50, cat: 'Tạp hóa', threshold: 10 },
+      { id: 'p12', name: 'Khăn mặt cotton', price: 39000, stock: 25, cat: 'Gia dụng', threshold: 8 }
+    ],
+    customers: [
+      { id: 'c1', name: 'Nguyễn Thị Hương', phone: '0901 234 567', spent: 2840000, visits: 14, joined: '03/2024', history: [{ id: '#HD0312', date: '24/06/2026', total: 318000 }, { id: '#HD0288', date: '11/06/2026', total: 459000 }, { id: '#HD0241', date: '28/05/2026', total: 204000 }] },
+      { id: 'c2', name: 'Trần Văn Bình', phone: '0912 888 222', spent: 1560000, visits: 7, joined: '08/2024', history: [{ id: '#HD0301', date: '20/06/2026', total: 359000 }, { id: '#HD0260', date: '02/06/2026', total: 178000 }] },
+      { id: 'c3', name: 'Lê Minh Châu', phone: '0987 555 111', spent: 990000, visits: 5, joined: '01/2025', history: [{ id: '#HD0295', date: '18/06/2026', total: 289000 }] },
+      { id: 'c4', name: 'Phạm Quốc Đạt', phone: '0933 446 779', spent: 4120000, visits: 21, joined: '11/2023', history: [{ id: '#HD0310', date: '23/06/2026', total: 612000 }, { id: '#HD0275', date: '07/06/2026', total: 245000 }] },
+      { id: 'c5', name: 'Võ Thị Ngọc', phone: '0966 121 343', spent: 670000, visits: 3, joined: '04/2025', history: [{ id: '#HD0282', date: '09/06/2026', total: 134000 }] }
+    ],
+    employees: [
+      { id: 'e1', name: 'Đặng Thiêm Cún', email: 'chu@thiemcun.vn', role: 'Chủ cửa hàng', active: true },
+      { id: 'e2', name: 'Nguyễn Hoài An', email: 'an.nv@thiemcun.vn', role: 'Nhân viên bán hàng', active: true },
+      { id: 'e3', name: 'Trần Thu Hà', email: 'ha.tn@thiemcun.vn', role: 'Thu ngân', active: true },
+      { id: 'e4', name: 'Lý Văn Khoa', email: 'khoa.nv@thiemcun.vn', role: 'Nhân viên bán hàng', active: false }
+    ],
+    orders: [
+      { id: '#HD0312', customer: 'Nguyễn Thị Hương', items: [{ name: 'Váy hoa nữ mùa hè', qty: 1, price: 289000 }, { name: 'Tất cổ ngắn (3 đôi)', qty: 1, price: 45000 }], sub: 334000, disc: 16000, total: 318000, payment: 'Tiền mặt', date: '24/06/2026 14:32', status: 'Hoàn thành', staff: 'Nguyễn Hoài An' },
+      { id: '#HD0311', customer: 'Khách lẻ', items: [{ name: 'Coca-Cola 1.5L', qty: 2, price: 18000 }, { name: 'Bánh Oreo socola', qty: 3, price: 22000 }], sub: 102000, disc: 0, total: 102000, payment: 'Tiền mặt', date: '24/06/2026 13:10', status: 'Hoàn thành', staff: 'Trần Thu Hà' },
+      { id: '#HD0310', customer: 'Phạm Quốc Đạt', items: [{ name: 'Áo khoác gió 2 lớp', qty: 1, price: 459000 }, { name: 'Quần jeans nam slim', qty: 1, price: 359000 }], sub: 818000, disc: 206000, total: 612000, payment: 'Chuyển khoản', date: '23/06/2026 17:45', status: 'Hoàn thành', staff: 'Nguyễn Hoài An' },
+      { id: '#HD0309', customer: 'Khách lẻ', items: [{ name: 'Áo thun cotton trắng', qty: 2, price: 159000 }], sub: 318000, disc: 0, total: 318000, payment: 'Chuyển khoản', date: '23/06/2026 11:20', status: 'Đang xử lý', staff: 'Trần Thu Hà' },
+      { id: '#HD0308', customer: 'Trần Văn Bình', items: [{ name: 'Nón lưỡi trai basic', qty: 2, price: 89000 }], sub: 178000, disc: 0, total: 178000, payment: 'Tiền mặt', date: '22/06/2026 09:05', status: 'Đã huỷ', staff: 'Nguyễn Hoài An' },
+      { id: '#HD0307', customer: 'Lê Minh Châu', items: [{ name: 'Mì Hảo Hảo (thùng 30)', qty: 1, price: 110000 }, { name: 'Nước rửa tay Lifebuoy', qty: 2, price: 35000 }], sub: 180000, disc: 0, total: 180000, payment: 'Tiền mặt', date: '21/06/2026 16:50', status: 'Hoàn thành', staff: 'Trần Thu Hà' }
+    ],
+    profile: { name: 'Đặng Thiêm Cún', email: 'chu@thiemcun.vn', phone: '0905 678 910' },
+    shop: { name: 'ThiemCun Store', address: '128 Nguyễn Văn Cừ, Q.5, TP.HCM', hotline: '1900 6868', email: 'lienhe@thiemcun.vn' }
+  };
+
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate(prev) { if (prev.accent !== this.props.accent) this.applyTheme(); }
+  applyTheme() {
+    const r = document.documentElement.style;
+    r.setProperty('--accent', this.props.accent || '#008060');
+    r.setProperty('--accent-d', '#006e52');
+    r.setProperty('--bg', '#FAFBFB');
+    r.setProperty('--surface', '#FFFFFF');
+    r.setProperty('--text', '#202223');
+    r.setProperty('--sub', '#6D7175');
+    r.setProperty('--border', '#E1E3E5');
+    r.setProperty('--danger', '#D72C0D');
+    r.setProperty('--warn', '#B98900');
+    r.setProperty('--shadow', '0 1px 3px rgba(0,0,0,.08)');
+    r.setProperty('--shadow-lg', '0 6px 24px rgba(0,0,0,.12)');
+  }
+
+  fmt(n) { return (n || 0).toLocaleString('vi-VN') + 'đ'; }
+  tr(n) { return (n / 1000000).toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + 'tr'; }
+
+  toast(msg, kind) {
+    const id = 't' + Date.now() + Math.random();
+    const icon = kind === 'error' ? 'ph-warning-circle' : kind === 'info' ? 'ph-info' : 'ph-check-circle';
+    const color = kind === 'error' ? 'var(--danger,#D72C0D)' : kind === 'info' ? 'var(--sub,#6D7175)' : 'var(--accent,#008060)';
+    this.setState(s => ({ toasts: [...s.toasts, { id, msg, icon, color }] }));
+    setTimeout(() => this.setState(s => ({ toasts: s.toasts.filter(t => t.id !== id) })), 3200);
+  }
+
+  doLogin = () => {
+    if (!this.state.loginEmail) { this.toast('Vui lòng nhập email', 'error'); return; }
+    this.setState({ stage: 'force' });
+  };
+  doGoogle = () => { this.setState({ stage: 'force' }); };
+  doForce = () => {
+    if (this.state.fpPw.length < 8) { this.toast('Mật khẩu cần tối thiểu 8 ký tự', 'error'); return; }
+    if (this.state.fpPw !== this.state.fpPw2) { this.toast('Mật khẩu nhập lại không khớp', 'error'); return; }
+    this.setState({ stage: 'app', page: 'dashboard' });
+    setTimeout(() => this.toast('Đổi mật khẩu thành công. Chào mừng đến ThiemCun POS!'), 200);
+    this.flashLoad();
+  };
+  flashLoad() { this.setState({ loading: true }); setTimeout(() => this.setState({ loading: false }), 480); }
+
+  navigate = (page) => {
+    this.setState({ page, orderDetailId: null, customerDetailId: null });
+    if (page !== 'pos') this.flashLoad();
+  };
+  toggleSidebar = () => this.setState(s => ({ collapsed: !s.collapsed }));
+  switchRole = (role) => {
+    const allowed = role === 'staff' ? ['pos', 'orders'] : ['dashboard', 'pos', 'products', 'orders', 'customers', 'employees', 'settings'];
+    this.setState(s => ({ role, page: allowed.includes(s.page) ? s.page : 'pos' }));
+  };
+
+  setCategory = (c) => this.setState({ posCategory: c });
+  addToCart = (p) => {
+    this.setState(s => {
+      const ex = s.cart.find(i => i.id === p.id);
+      if (ex) return { cart: s.cart.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i) };
+      return { cart: [...s.cart, { id: p.id, name: p.name, price: p.price, qty: 1 }] };
+    });
+  };
+  incQty = (id) => this.setState(s => ({ cart: s.cart.map(i => i.id === id ? { ...i, qty: i.qty + 1 } : i) }));
+  decQty = (id) => this.setState(s => ({ cart: s.cart.flatMap(i => i.id === id ? (i.qty > 1 ? [{ ...i, qty: i.qty - 1 }] : []) : [i]) }));
+  removeItem = (id) => this.setState(s => ({ cart: s.cart.filter(i => i.id !== id) }));
+  clearCart = () => this.setState({ cart: [], discount: 'none' });
+  setDiscount = (d) => this.setState({ discount: d });
+  setPay = (m) => this.setState({ payMethod: m });
+  setPosCustomer = (e) => this.setState({ posCustomer: e.target.value });
+
+  cartCalc() {
+    const sub = this.state.cart.reduce((s, i) => s + i.price * i.qty, 0);
+    let disc = 0;
+    const d = this.state.discount;
+    if (d === 'member') disc = Math.round(sub * 0.1);
+    else if (d !== 'none') disc = Math.round(sub * (parseInt(d) / 100));
+    return { sub, disc, total: sub - disc };
+  }
+
+  checkout = () => {
+    if (!this.state.cart.length) return;
+    const { sub, disc, total } = this.cartCalc();
+    const num = 313 + this.state.orders.filter(o => o.id.startsWith('#HD03')).length;
+    const cust = this.state.posCustomer === 'le' ? 'Khách lẻ' : (this.state.customers.find(c => c.id === this.state.posCustomer) || {}).name || 'Khách lẻ';
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const order = {
+      id: '#HD0' + num, customer: cust,
+      items: this.state.cart.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
+      sub, disc, total,
+      payment: this.state.payMethod === 'cash' ? 'Tiền mặt' : 'Chuyển khoản',
+      date: `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      status: 'Hoàn thành', staff: this.state.profile.name
+    };
+    this.setState(s => ({
+      orders: [order, ...s.orders],
+      products: s.products.map(p => { const ci = s.cart.find(i => i.id === p.id); return ci ? { ...p, stock: Math.max(0, p.stock - ci.qty) } : p; }),
+      cart: [], discount: 'none', receiptOrder: order
+    }));
+    this.toast('Thanh toán thành công · ' + this.fmt(total));
+  };
+  closeReceipt = () => this.setState({ receiptOrder: null });
+  printReceipt = () => window.print();
+
+  openOrder = (id) => this.setState({ orderDetailId: id });
+  closeOrder = () => this.setState({ orderDetailId: null });
+
+  setProdSearch = (e) => this.setState({ prodSearch: e.target.value });
+  setPosSearch = (e) => this.setState({ posSearch: e.target.value });
+  openAddProduct = () => this.setState({ pm: { mode: 'add', id: null, name: '', cat: 'Thời trang', price: '', stock: '', threshold: '5' } });
+  openEditProduct = (p) => this.setState({ pm: { mode: 'edit', id: p.id, name: p.name, cat: p.cat, price: String(p.price), stock: String(p.stock), threshold: String(p.threshold) } });
+  closeProductModal = () => this.setState({ pm: null });
+  pmField = (k) => (e) => { const v = e.target.value; this.setState(s => ({ pm: { ...s.pm, [k]: v } })); };
+  saveProduct = () => {
+    const pm = this.state.pm;
+    if (!pm.name || !pm.price) { this.toast('Nhập tên và giá sản phẩm', 'error'); return; }
+    const data = { name: pm.name, cat: pm.cat, price: parseInt(pm.price) || 0, stock: parseInt(pm.stock) || 0, threshold: parseInt(pm.threshold) || 5 };
+    if (pm.mode === 'add') {
+      this.setState(s => ({ products: [{ id: 'p' + Date.now(), ...data }, ...s.products], pm: null }));
+      this.toast('Đã thêm "' + data.name + '"');
+    } else {
+      this.setState(s => ({ products: s.products.map(p => p.id === pm.id ? { ...p, ...data } : p), pm: null }));
+      this.toast('Đã cập nhật sản phẩm');
+    }
+  };
+  deleteProduct = (p) => { this.setState(s => ({ products: s.products.filter(x => x.id !== p.id) })); this.toast('Đã xoá "' + p.name + '"', 'info'); };
+
+  openCustomer = (id) => this.setState({ customerDetailId: id });
+  closeCustomer = () => this.setState({ customerDetailId: null });
+  openAddCustomer = () => this.setState({ cm: { mode: 'add', id: null, name: '', phone: '' } });
+  closeCustomerModal = () => this.setState({ cm: null });
+  cmField = (k) => (e) => { const v = e.target.value; this.setState(s => ({ cm: { ...s.cm, [k]: v } })); };
+  saveCustomer = () => {
+    const cm = this.state.cm;
+    if (!cm.name) { this.toast('Nhập tên khách hàng', 'error'); return; }
+    this.setState(s => ({ customers: [{ id: 'c' + Date.now(), name: cm.name, phone: cm.phone || '—', spent: 0, visits: 0, joined: '06/2026', history: [] }, ...s.customers], cm: null }));
+    this.toast('Đã thêm khách hàng "' + cm.name + '"');
+  };
+  deleteCustomer = (c) => { this.setState(s => ({ customers: s.customers.filter(x => x.id !== c.id), customerDetailId: null })); this.toast('Đã xoá khách hàng', 'info'); };
+
+  openInvite = () => this.setState({ invite: { email: '', role: 'Nhân viên bán hàng' } });
+  closeInvite = () => this.setState({ invite: null });
+  inviteField = (k) => (e) => { const v = e.target.value; this.setState(s => ({ invite: { ...s.invite, [k]: v } })); };
+  sendInvite = () => {
+    const iv = this.state.invite;
+    if (!iv.email || !iv.email.includes('@')) { this.toast('Nhập email hợp lệ', 'error'); return; }
+    this.setState(s => ({ employees: [...s.employees, { id: 'e' + Date.now(), name: iv.email.split('@')[0], email: iv.email, role: iv.role, active: true }], invite: null }));
+    this.toast('Đã gửi lời mời tới ' + iv.email);
+  };
+  toggleEmployee = (id) => this.setState(s => ({ employees: s.employees.map(e => e.id === id ? { ...e, active: !e.active } : e) }));
+
+  setSetTab = (t) => this.setState({ setTab: t });
+  toggleMfa = () => { if (this.state.role === 'owner') { this.toast('2FA là bắt buộc với chủ cửa hàng', 'info'); return; } this.setState(s => ({ mfa: !s.mfa })); };
+  saveSettings = () => this.toast('Đã lưu thay đổi');
+
+  navMeta() {
+    return [
+      { key: 'dashboard', label: 'Tổng quan', icon: 'ph-chart-pie-slice' },
+      { key: 'pos', label: 'Bán hàng', icon: 'ph-storefront' },
+      { key: 'products', label: 'Sản phẩm', icon: 'ph-package' },
+      { key: 'orders', label: 'Đơn hàng', icon: 'ph-receipt' },
+      { key: 'customers', label: 'Khách hàng', icon: 'ph-users' },
+      { key: 'employees', label: 'Nhân viên', icon: 'ph-user-circle-gear' },
+      { key: 'settings', label: 'Cài đặt', icon: 'ph-gear' }
+    ];
+  }
+
+  renderVals() {
+    const s = this.state;
+    const isOwner = s.role === 'owner';
+    const allowed = isOwner ? ['dashboard', 'pos', 'products', 'orders', 'customers', 'employees', 'settings'] : ['pos', 'orders'];
+    const navItems = this.navMeta().filter(n => allowed.includes(n.key)).map(n => { const a = s.page === n.key; return { ...n, active: a, onClick: () => this.navigate(n.key), bg: a ? '#E7F4EF' : 'transparent', color: a ? 'var(--accent,#008060)' : 'var(--sub,#6D7175)', fw: a ? '600' : '500' }; });
+    const titles = { dashboard: ['Tổng quan & Báo cáo', 'Tình hình kinh doanh hôm nay'], pos: ['Bán hàng', 'Tạo đơn nhanh tại quầy'], products: ['Sản phẩm', 'Quản lý kho hàng'], orders: ['Đơn hàng', 'Lịch sử giao dịch'], customers: ['Khách hàng', 'Cơ sở dữ liệu khách'], employees: ['Nhân viên', 'Phân quyền & truy cập'], settings: ['Cài đặt', 'Tài khoản & cửa hàng'] };
+    const [pageTitle, pageSub] = titles[s.page] || ['', ''];
+
+    const AC = 'var(--accent,#008060)', SUB = 'var(--sub,#6D7175)', TXT = 'var(--text,#202223)', BD = 'var(--border,#E1E3E5)', DG = 'var(--danger,#D72C0D)';
+    const catIcon = { 'Thời trang': 'ph-t-shirt', 'Phụ kiện': 'ph-handbag', 'Tạp hóa': 'ph-shopping-bag', 'Gia dụng': 'ph-house-line' };
+    const cats = ['Thời trang', 'Phụ kiện', 'Tạp hóa', 'Gia dụng'];
+    const chip = (active) => ({ bg: active ? AC : '#fff', color: active ? '#fff' : TXT, borderColor: active ? AC : BD });
+    const categories = [{ key: 'all', label: 'Tất cả' }, ...cats.map(c => ({ key: c, label: c }))].map(c => ({ ...c, active: s.posCategory === c.key, onClick: () => this.setCategory(c.key), ...chip(s.posCategory === c.key) }));
+    const q = s.posSearch.trim().toLowerCase();
+    const posProducts = s.products
+      .filter(p => (s.posCategory === 'all' || p.cat === s.posCategory) && (!q || p.name.toLowerCase().includes(q)))
+      .map(p => ({ id: p.id, name: p.name, priceText: this.fmt(p.price), stock: p.stock, low: p.stock <= p.threshold, catIcon: catIcon[p.cat] || 'ph-package', onClick: () => this.addToCart(p) }));
+
+    const cart = s.cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, priceText: this.fmt(i.price), lineText: this.fmt(i.price * i.qty), onInc: () => this.incQty(i.id), onDec: () => this.decQty(i.id) }));
+    const { sub, disc, total } = this.cartCalc();
+    const discOpts = [{ key: 'none', label: 'Không' }, { key: '5', label: '5%' }, { key: '10', label: '10%' }, { key: '15', label: '15%' }, { key: 'member', label: 'Thành viên' }].map(o => ({ ...o, active: s.discount === o.key, onClick: () => this.setDiscount(o.key), bg: s.discount === o.key ? '#E7F4EF' : '#fff', color: s.discount === o.key ? AC : TXT, borderColor: s.discount === o.key ? AC : BD }));
+    const customersOptions = s.customers;
+
+    // dashboard
+    const chartData = {
+      day: { labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'], vals: [2100000, 3400000, 2800000, 4000000, 3200000, 4600000, 4250000] },
+      week: { labels: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'], vals: [18000000, 22000000, 19000000, 25000000] },
+      month: { labels: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], vals: [62000000, 71000000, 68000000, 80000000, 76000000, 88000000] }
+    };
+    const cd = chartData[s.chartPeriod];
+    const maxv = Math.max(...cd.vals);
+    const chartBars = cd.vals.map((v, i) => { const last = i === cd.vals.length - 1; return { label: cd.labels[i], hPct: Math.round(v / maxv * 100) + '%', val: this.tr(v), barBg: last ? AC : '#A7D9C9' }; });
+    const chartPeriods = [{ key: 'day', label: 'Ngày' }, { key: 'week', label: 'Tuần' }, { key: 'month', label: 'Tháng' }].map(p => ({ ...p, active: s.chartPeriod === p.key, onClick: () => this.setState({ chartPeriod: p.key }), bg: s.chartPeriod === p.key ? '#fff' : 'transparent', color: s.chartPeriod === p.key ? TXT : SUB }));
+    const topProducts = [
+      { name: 'Áo thun cotton trắng', sold: 86, rev: 13674000 },
+      { name: 'Coca-Cola 1.5L', sold: 74, rev: 1332000 },
+      { name: 'Quần jeans nam slim', sold: 41, rev: 14719000 },
+      { name: 'Bánh Oreo socola', sold: 38, rev: 836000 }
+    ];
+    const topMax = Math.max(...topProducts.map(t => t.rev));
+    const topRows = topProducts.map(t => ({ name: t.name, soldText: t.sold + ' đã bán', revText: this.fmt(t.rev), barW: Math.round(t.rev / topMax * 100) + '%' }));
+    const staffPerf = [
+      { name: 'Nguyễn Hoài An', orders: 142, rev: 28400000 },
+      { name: 'Trần Thu Hà', orders: 118, rev: 19600000 },
+      { name: 'Lý Văn Khoa', orders: 64, rev: 9800000 }
+    ];
+    const staffMax = Math.max(...staffPerf.map(t => t.rev));
+    const staffRows = staffPerf.map((t, i) => ({ name: t.name, ordersText: t.orders + ' đơn', revText: this.fmt(t.rev), barW: Math.round(t.rev / staffMax * 100) + '%', initial: t.name.split(' ').pop()[0] }));
+
+    const statusColor = st => st === 'Hoàn thành' ? 'var(--accent,#008060)' : st === 'Đang xử lý' ? 'var(--warn,#B98900)' : 'var(--danger,#D72C0D)';
+    const statusBg = st => st === 'Hoàn thành' ? '#E7F4EF' : st === 'Đang xử lý' ? '#FBF3E0' : '#FCEBE9';
+    const orderRows = s.orders.map(o => ({ id: o.id, customer: o.customer, itemsText: o.items.reduce((a, i) => a + i.qty, 0) + ' sản phẩm', totalText: this.fmt(o.total), status: o.status, statusColor: statusColor(o.status), statusBg: statusBg(o.status), payment: o.payment, date: o.date, onClick: () => this.openOrder(o.id) }));
+    const recentRows = orderRows.slice(0, 5);
+
+    const pq = s.prodSearch.trim().toLowerCase();
+    const prodRows = s.products.filter(p => !pq || p.name.toLowerCase().includes(pq)).map(p => ({ id: p.id, name: p.name, priceText: this.fmt(p.price), stock: p.stock, low: p.stock <= p.threshold, catLabel: p.cat, catIcon: catIcon[p.cat] || 'ph-package', initial: p.name[0], stockColor: p.stock <= p.threshold ? DG : TXT, stockBg: p.stock <= p.threshold ? '#FCEBE9' : '#F1F2F3', onEdit: () => this.openEditProduct(p), onDelete: () => this.deleteProduct(p) }));
+    const lowStockCount = s.products.filter(p => p.stock <= p.threshold).length;
+
+    const custRows = s.customers.map(c => ({ id: c.id, name: c.name, phone: c.phone, spentText: this.fmt(c.spent), visits: c.visits + ' lượt', initial: c.name.split(' ').pop()[0], onClick: () => this.openCustomer(c.id) }));
+
+    const empRows = s.employees.map(e => { const own = e.role === 'Chủ cửa hàng'; return { id: e.id, name: e.name, email: e.email, role: e.role, active: e.active, isOwner: own, canToggle: !own, initial: e.name.split(' ').pop()[0], statusColor: e.active ? AC : SUB, statusText: e.active ? 'Đang hoạt động' : 'Đã khoá', toggleBg: e.active ? AC : '#c4c8cb', knobLeft: e.active ? '23px' : '3px', onToggle: () => this.toggleEmployee(e.id) }; });
+
+    const orderDetail = s.orderDetailId ? s.orders.find(o => o.id === s.orderDetailId) : null;
+    const odItems = orderDetail ? orderDetail.items.map(i => ({ name: i.name, qty: i.qty, priceText: this.fmt(i.price), lineText: this.fmt(i.price * i.qty) })) : [];
+    const customerDetail = s.customerDetailId ? s.customers.find(c => c.id === s.customerDetailId) : null;
+    const cdHistory = customerDetail ? customerDetail.history.map(h => ({ id: h.id, date: h.date, totalText: this.fmt(h.total) })) : [];
+
+    const rc = s.receiptOrder;
+    const rcItems = rc ? rc.items.map(i => ({ name: i.name, qty: i.qty, lineText: this.fmt(i.price * i.qty) })) : [];
+
+    return {
+      isLogin: s.stage === 'login', isForce: s.stage === 'force', isApp: s.stage === 'app',
+      role: s.role, isOwner, isStaff: !isOwner,
+      collapsed: s.collapsed, notCollapsed: !s.collapsed, sidebarW: s.collapsed ? '76px' : '252px',
+      loading: s.loading, notLoading: !s.loading,
+      showRoleSwitcher: this.props.showRoleSwitcher !== false,
+      navItems, pageTitle, pageSub,
+      shopName: s.shop.name, profileName: s.profile.name, profileInitial: s.profile.name.split(' ').pop()[0], roleLabel: isOwner ? 'Chủ cửa hàng' : 'Nhân viên',
+      // pages
+      pageDashboard: s.page === 'dashboard', pagePos: s.page === 'pos', pageProducts: s.page === 'products', pageOrders: s.page === 'orders', pageCustomers: s.page === 'customers', pageEmployees: s.page === 'employees', pageSettings: s.page === 'settings',
+      // login
+      loginEmail: s.loginEmail, loginPw: s.loginPw,
+      onLoginEmail: e => this.setState({ loginEmail: e.target.value }), onLoginPw: e => this.setState({ loginPw: e.target.value }),
+      doLogin: this.doLogin, doGoogle: this.doGoogle,
+      fpPw: s.fpPw, fpPw2: s.fpPw2, onFpPw: e => this.setState({ fpPw: e.target.value }), onFpPw2: e => this.setState({ fpPw2: e.target.value }), doForce: this.doForce,
+      // nav
+      navigate: this.navigate, toggleSidebar: this.toggleSidebar, switchRole: this.switchRole, goOrders: () => this.navigate('orders'),
+      asOwner: () => this.switchRole('owner'), asStaff: () => this.switchRole('staff'),
+      ownerBtnBg: isOwner ? '#fff' : 'transparent', ownerBtnColor: isOwner ? TXT : SUB, staffBtnBg: !isOwner ? '#fff' : 'transparent', staffBtnColor: !isOwner ? TXT : SUB,
+      // pos
+      categories, posProducts, posSearch: s.posSearch, setPosSearch: this.setPosSearch, setCategory: this.setCategory,
+      cart, cartEmpty: !cart.length, cartNotEmpty: cart.length > 0, cartCount: s.cart.reduce((a, i) => a + i.qty, 0),
+      subText: this.fmt(sub), discText: disc ? '-' + this.fmt(disc) : this.fmt(0), totalText: this.fmt(total), hasDisc: disc > 0,
+      discOpts, setDiscount: this.setDiscount,
+      payCashClick: () => this.setPay('cash'), payBankClick: () => this.setPay('bank'),
+      cashBg: s.payMethod === 'cash' ? '#E7F4EF' : '#fff', cashBorder: s.payMethod === 'cash' ? AC : BD, cashColor: s.payMethod === 'cash' ? AC : TXT,
+      bankBg: s.payMethod === 'bank' ? '#E7F4EF' : '#fff', bankBorder: s.payMethod === 'bank' ? AC : BD, bankColor: s.payMethod === 'bank' ? AC : TXT,
+      posCustomer: s.posCustomer, customersOptions, setPosCustomer: this.setPosCustomer,
+      addToCart: this.addToCart, incQty: this.incQty, decQty: this.decQty, removeItem: this.removeItem, clearCart: this.clearCart, checkout: this.checkout,
+      // dashboard
+      chartBars, chartPeriods, setChartPeriod: k => this.setState({ chartPeriod: k }),
+      topRows, staffRows, recentRows,
+      kpis: [
+        { label: 'Doanh thu hôm nay', value: this.fmt(4250000), delta: '+12,4%', up: true, icon: 'ph-currency-circle-dollar' },
+        { label: 'Đơn hàng', value: '38', delta: '+8 đơn', up: true, icon: 'ph-receipt' },
+        { label: 'Khách mới', value: '6', delta: '+2', up: true, icon: 'ph-user-plus' },
+        { label: 'Giá trị TB/đơn', value: this.fmt(111800), delta: '-3,1%', up: false, icon: 'ph-chart-line-up' }
+      ].map(k => ({ ...k, deltaColor: k.up ? AC : DG, deltaIcon: k.up ? 'ph-trend-up' : 'ph-trend-down' })),
+      // products
+      prodRows, prodSearch: s.prodSearch, setProdSearch: this.setProdSearch, lowStockCount, hasLowStock: lowStockCount > 0,
+      openAddProduct: this.openAddProduct, openEditProduct: this.openEditProduct, deleteProduct: this.deleteProduct,
+      pm: s.pm, pmOpen: !!s.pm, pmTitle: s.pm ? (s.pm.mode === 'add' ? 'Thêm sản phẩm' : 'Sửa sản phẩm') : '',
+      pmName: s.pm ? s.pm.name : '', pmCat: s.pm ? s.pm.cat : '', pmPrice: s.pm ? s.pm.price : '', pmStock: s.pm ? s.pm.stock : '', pmThreshold: s.pm ? s.pm.threshold : '',
+      pmNameInput: this.pmField('name'), pmCatInput: this.pmField('cat'), pmPriceInput: this.pmField('price'), pmStockInput: this.pmField('stock'), pmThresholdInput: this.pmField('threshold'),
+      saveProduct: this.saveProduct, closeProductModal: this.closeProductModal,
+      // orders
+      orderRows, openOrder: this.openOrder, closeOrder: this.closeOrder,
+      orderDetail, odOpen: !!orderDetail, odItems,
+      odId: orderDetail ? orderDetail.id : '', odCustomer: orderDetail ? orderDetail.customer : '', odDate: orderDetail ? orderDetail.date : '', odStatus: orderDetail ? orderDetail.status : '', odStatusColor: orderDetail ? statusColor(orderDetail.status) : '', odStatusBg: orderDetail ? statusBg(orderDetail.status) : '', odPayment: orderDetail ? orderDetail.payment : '', odStaff: orderDetail ? orderDetail.staff : '', odSubText: orderDetail ? this.fmt(orderDetail.sub) : '', odDiscText: orderDetail ? ('-' + this.fmt(orderDetail.disc)) : '', odHasDisc: orderDetail ? orderDetail.disc > 0 : false, odTotalText: orderDetail ? this.fmt(orderDetail.total) : '',
+      // customers
+      custRows, openCustomer: this.openCustomer, closeCustomer: this.closeCustomer, openAddCustomer: this.openAddCustomer,
+      deleteCurrentCustomer: () => customerDetail && this.deleteCustomer(customerDetail),
+      customerDetail, cdOpen: !!customerDetail, cdHistory, cdNoHistory: customerDetail ? customerDetail.history.length === 0 : false, cdName: customerDetail ? customerDetail.name : '', cdInitial: customerDetail ? customerDetail.name.split(' ').pop()[0] : '', cdPhone: customerDetail ? customerDetail.phone : '', cdSpentText: customerDetail ? this.fmt(customerDetail.spent) : '', cdVisits: customerDetail ? customerDetail.visits : '', cdJoined: customerDetail ? customerDetail.joined : '', cdHasHistory: customerDetail ? customerDetail.history.length > 0 : false,
+      cm: s.cm, cmOpen: !!s.cm, cmName: s.cm ? s.cm.name : '', cmPhone: s.cm ? s.cm.phone : '', cmNameInput: this.cmField('name'), cmPhoneInput: this.cmField('phone'), saveCustomer: this.saveCustomer, closeCustomerModal: this.closeCustomerModal,
+      // employees
+      empRows, toggleEmployee: this.toggleEmployee, openInvite: this.openInvite,
+      invite: s.invite, inviteOpen: !!s.invite, inviteEmail: s.invite ? s.invite.email : '', inviteRole: s.invite ? s.invite.role : '', inviteEmailInput: this.inviteField('email'), inviteRoleInput: this.inviteField('role'), sendInvite: this.sendInvite, closeInvite: this.closeInvite,
+      // settings
+      setTab: s.setTab, setTabProfile: s.setTab === 'profile', setTabSecurity: s.setTab === 'security', setTabShop: s.setTab === 'shop', setSetTab: this.setSetTab,
+      tabProfileClick: () => this.setSetTab('profile'), tabSecurityClick: () => this.setSetTab('security'), tabShopClick: () => this.setSetTab('shop'),
+      tabProfileColor: s.setTab === 'profile' ? TXT : SUB, tabProfileBorder: s.setTab === 'profile' ? AC : 'transparent',
+      tabSecurityColor: s.setTab === 'security' ? TXT : SUB, tabSecurityBorder: s.setTab === 'security' ? AC : 'transparent',
+      tabShopColor: s.setTab === 'shop' ? TXT : SUB, tabShopBorder: s.setTab === 'shop' ? AC : 'transparent',
+      profileNameVal: s.profile.name, profilePhoneVal: s.profile.phone, profileEmailVal: s.profile.email,
+      shopNameVal: s.shop.name, shopAddrVal: s.shop.address, shopHotlineVal: s.shop.hotline, shopEmailVal: s.shop.email,
+      shopAddrPrint: s.shop.address, shopHotlinePrint: s.shop.hotline,
+      mfaDesc: isOwner ? 'Bắt buộc đối với chủ cửa hàng để bảo vệ dữ liệu tài chính — không thể tắt.' : 'Thêm một lớp bảo vệ bằng mã OTP khi đăng nhập.',
+      mfaToggleBg: s.mfa ? AC : '#c4c8cb', mfaKnobLeft: s.mfa ? '25px' : '3px',
+      odPrint: () => { const o = orderDetail; if (o) { this.setState({ receiptOrder: o }); setTimeout(() => window.print(), 140); } },
+      profile: s.profile, shop: s.shop, mfa: s.mfa, toggleMfa: this.toggleMfa, saveSettings: this.saveSettings,
+      onProfName: e => { const v = e.target.value; this.setState(st => ({ profile: { ...st.profile, name: v } })); },
+      onProfPhone: e => { const v = e.target.value; this.setState(st => ({ profile: { ...st.profile, phone: v } })); },
+      onShopName: e => { const v = e.target.value; this.setState(st => ({ shop: { ...st.shop, name: v } })); },
+      onShopAddr: e => { const v = e.target.value; this.setState(st => ({ shop: { ...st.shop, address: v } })); },
+      onShopHotline: e => { const v = e.target.value; this.setState(st => ({ shop: { ...st.shop, hotline: v } })); },
+      // receipt
+      receiptOrder: rc, rcptOpen: !!rc, rcItems, rcId: rc ? rc.id : '', rcCustomer: rc ? rc.customer : '', rcDate: rc ? rc.date : '', rcSubText: rc ? this.fmt(rc.sub) : '', rcDiscText: rc ? ('-' + this.fmt(rc.disc)) : '', rcHasDisc: rc ? rc.disc > 0 : false, rcTotalText: rc ? this.fmt(rc.total) : '', rcPayment: rc ? rc.payment : '', rcStaff: rc ? rc.staff : '',
+      closeReceipt: this.closeReceipt, printReceipt: this.printReceipt,
+      // toasts
+      toasts: s.toasts
+    };
+  }
+}
+</script>
+</body>
+</html>
