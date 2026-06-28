@@ -72,3 +72,9 @@ Ngày 2026-06-28, user đã thêm 1 thẻ vào Vercel **chỉ để verify accou
 | Cần domain `.com` chuyên nghiệp | `vercel domains buy thiemcun.com` | ~$11/năm |
 
 > Tóm lại: bản hiện tại **$0**, đủ chạy thật cho cửa hàng nhỏ + dạy học. Chỉ trả khi quy mô lớn.
+
+## Email invite (Supabase free tier)
+- Mời nhân viên gửi email tự động qua Supabase Auth (magic-link OTP, `create_user=true`).
+- **Free tier ~ 3-4 email/giờ** (built-in SMTP) → đủ cho dev/demo. Vượt → cấu hình SMTP riêng (Resend/Postmark)
+  hoặc Supabase Pro ($25/mo) — **CHƯA bật, cần user duyệt** (không tự upgrade).
+- Fallback: UI luôn hiện "Copy link" để owner gửi tay (Zalo/SMS) nếu email chưa tới.
