@@ -126,7 +126,7 @@ export default function App() {
             {activeTab === "products" && <Products products={products} onChanged={() => reload(user?.role)} />}
             {activeTab === "orders" && <Orders orders={orders} />}
             {activeTab === "customers" && <Customers />}
-            {activeTab === "reports" && <Reports report={report} />}
+            {activeTab === "reports" && <Reports report={report} orders={orders} customers={customers} />}
             {activeTab === "employees" && <Employees />}
             {activeTab === "settings" && <Settings user={user || DEMO_USER} />}
           </>
