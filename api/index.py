@@ -24,8 +24,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from auth import (auth_enabled, current_user, require_owner, require_shop,
-                  require_user, shop_context, user_id_of)
+from auth import (auth_enabled, require_owner, require_shop,
+                  require_user, user_id_of)
 from db import get_db
 from pricing import StockError
 

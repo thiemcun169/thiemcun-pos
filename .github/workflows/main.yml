@@ -1,7 +1,10 @@
-name: main — staging deploy + migrate
+name: main — CI (test only, no auto-deploy)
+# main KHÔNG tự deploy. Prod chỉ qua tag v* (release.yml, có cổng duyệt).
+# Đây là lớp phòng thủ: mọi commit chạm main phải xanh test.
 on:
   push:
     branches: [main]
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,36 +16,3 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements-dev.txt && python -m pytest -q
-  migrate-staging:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
-        with: { version: 2.108.0 }   # PIN: tránh rate-limit resolve "latest"
-      - env: { SUPABASE_ACCESS_TOKEN: "${{ secrets.SUPABASE_ACCESS_TOKEN }}" }
-        run: |
-          supabase link --project-ref ${{ secrets.SUPABASE_STAGING_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
-          supabase db push --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
-  deploy-staging:
-    needs: migrate-staging
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      # Vercel build Python (FastAPI) cần `uv` để cài deps khi build CỤC BỘ trên runner.
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.uv-bin" sh
-          echo "$HOME/.uv-bin" >> "$GITHUB_PATH"
-      - run: |
-          npm i -g vercel
-          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}

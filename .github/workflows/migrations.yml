@@ -1,27 +1,23 @@
 name: DB Migrations (Supabase)
 
-# Áp migration theo môi trường — KHÔNG bao giờ sửa schema prod trực tiếp.
-#   * push lên main      -> áp vào STAGING
-#   * tag v*.*.*         -> áp vào PROD (release có kiểm soát)
-#   * chạy tay (dispatch) -> chọn môi trường
+# Áp migration theo môi trường — KHÔNG bao giờ sửa schema prod trực tiếp. DISPATCH-ONLY.
+# (Gitflow: push dev -> dev.yml tự migrate DEV; tag v* -> release.yml migrate PROD.
+#  Workflow này để chạy TAY khi cần — chọn môi trường.)
 #
 # Secrets cần đặt (Settings -> Secrets and variables -> Actions):
 #   SUPABASE_ACCESS_TOKEN
-#   SUPABASE_STAGING_REF,  SUPABASE_STAGING_DB_PASSWORD
+#   SUPABASE_STAGING_REF,  SUPABASE_STAGING_DB_PASSWORD   (dev = staging project)
 #   SUPABASE_PROD_REF,     SUPABASE_PROD_DB_PASSWORD
 
 on:
-  push:
-    branches: [main]
-    paths: ["supabase/migrations/**"]   # -> STAGING tự động
   workflow_dispatch:                      # -> chọn môi trường (prod release có kiểm soát)
     inputs:
       environment:
-        description: "Môi trường áp migration"
+        description: "Môi trường áp migration (dev = Supabase staging project)"
         required: true
-        default: staging
+        default: dev
         type: choice
-        options: [staging, prod]
+        options: [dev, staging, prod]
 
 jobs:
   migrate:
