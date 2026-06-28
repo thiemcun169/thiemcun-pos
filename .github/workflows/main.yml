@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
-        with: { version: latest }
+        with: { version: 2.108.0 }   # PIN: tránh rate-limit resolve "latest"
       - env: { SUPABASE_ACCESS_TOKEN: "${{ secrets.SUPABASE_ACCESS_TOKEN }}" }
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_STAGING_REF }} --password ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}

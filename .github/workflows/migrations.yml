@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.108.0   # PIN: tránh rate-limit khi resolve "latest" qua GitHub API
 
       - name: Pick environment
         id: env
