@@ -3,8 +3,8 @@
 Sản phẩm mẫu **production-ready** của khoá **"Vibe Coding với Claude Code"**, đi trọn pipeline
 **Idea → Research → PRD → Prototype → Build → Test → Deploy → Operate**.
 
-> **Live (prod):** https://thiemcun-prod.vercel.app · **Staging:** https://thiemcun-staging-s1.vercel.app
-> Hướng dẫn dựng lại từ đầu: **[../HANDSON.md](../HANDSON.md)**
+> **Live (prod):** **https://pos.thiemcun.io.vn** (custom domain) · https://thiemcun-prod.vercel.app
+> **Staging:** https://thiemcun-staging-s1.vercel.app · Hướng dẫn dựng lại: **[../HANDSON.md](../HANDSON.md)**
 
 ## Tính năng
 - **Bán hàng (POS)**: lưới sản phẩm + tìm kiếm + giỏ hàng → tạo đơn (tự trừ tồn kho).
