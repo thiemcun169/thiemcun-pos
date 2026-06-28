@@ -1,7 +1,31 @@
 # COST.md — Kiểm soát chi phí ThiemCun POS (giữ $0)
 
-> Nguyên tắc: **KHÔNG cắm thẻ vào bất kỳ dịch vụ nào.** Toàn bộ chạy ở **free tier**.
-> Cập nhật: 2026-06-28 (Phase 8).
+> Nguyên tắc: **Toàn bộ chạy ở free tier — mục tiêu $0.**
+> Cập nhật: 2026-06-28 (Phase 10.5 — đã thêm thẻ vào Vercel để VERIFY account).
+
+## 0. Sau khi add card vào Vercel — HARD RULES (bắt buộc)
+
+Ngày 2026-06-28, user đã thêm 1 thẻ vào Vercel **chỉ để verify account** (gỡ lỗi deploy "Blocked" do `isVerified:false`). **Verify ≠ cho phép tiêu tiền.** Mọi tác nhân (AI hay người) tuyệt đối KHÔNG được:
+
+- ❌ Click **Upgrade to Pro** / Activate Pro Trial / bất kỳ banner nâng cấp nào
+- ❌ **Mua domain** qua Vercel (`vercel domains buy …`) — cần user duyệt từng lần
+- ❌ Bật **paid add-on** (AI Gateway auto-reload, Vercel KV/Blob/Postgres bản trả phí, Edge Config quota trả phí, Observability Plus…)
+- ❌ Bật **AI Gateway Auto-reload** — giữ **Off** (hiện có $5.00 credit KHUYẾN MÃI free, hết là dừng, KHÔNG tự mua thêm)
+- ❌ **Add team seat** (thêm thành viên trả phí)
+- ✅ Nếu task cần tính năng trả phí → **STOP + hỏi user**: "Cần paid feature X (~$Y), confirm proceed?"
+
+**Trạng thái đã xác minh (2026-06-28, sau khi add card):**
+
+| Mục | Giá trị |
+|---|---|
+| Plan | **Hobby** (Active) — chưa nâng cấp |
+| Payment method | Visa debit •••• **0390**, Default, valid **12/2028** (verify-only) |
+| Invoices | **None** — thẻ chưa bị trừ đồng nào |
+| AI Gateway credit | $5.00 (credit free), **Auto-reload = Off** |
+| Subscription | Không có gói trả phí định kỳ nào |
+| v0 plan (personal) | Free |
+
+> Vì sao an toàn: Hobby **không có on-demand billing** (vượt limit thì *tạm dừng*, không charge). Spend Management/Usage Alerts là tính năng Pro → không bật được trên Hobby, nhưng cũng KHÔNG cần vì Hobby vốn không sinh phí.
 
 ## 1. Hiện trạng — tất cả FREE
 | Dịch vụ | Gói | Hạn free | Dùng cho |
