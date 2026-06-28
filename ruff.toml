@@ -1,0 +1,8 @@
+# Lint config (standalone — KHÔNG dùng pyproject.toml vì gây lỗi Python runtime trên Vercel).
+line-length = 140
+target-version = "py39"
+
+[lint]
+# Bắt lỗi thật (pyflakes F + lỗi cú pháp E9 + vài E4/E7), BỎ quy ước style nhiều-câu-1-dòng.
+select = ["E4", "E7", "E9", "F", "W6"]
+ignore = ["E701", "E702", "E741"]   # cho phép style gọn (; nhiều câu, biến 1 ký tự l/I/O)

@@ -90,3 +90,17 @@ Supabase hỗ trợ SAML SSO (Pro+). Để bật Google Workspace SSO:
 - [ ] Supabase Pro nếu cần PITR/không-ngủ.
 - [ ] Rà `allowed_emails` đúng người.
 - [ ] Kiểm `git ls-files | grep -iE '\.env|secret'` sạch.
+
+## OAuth Client Isolation (dev ⟂ prod)
+
+**Mỗi môi trường có Google OAuth client RIÊNG** (không share) — leak/rotate dev không ảnh hưởng prod, audit log Google phân biệt env.
+
+| Env | Google OAuth client | Supabase project | Redirect URI (Google) | App origin |
+|-----|--------------------|------------------|----------------------|-----------|
+| **prod** | `thiemcun-pos-web` (`35138590129-qe404…`) | `cnoolkkpkvzerlwkhjxe` | `https://cnoolkkpkvzerlwkhjxe.supabase.co/auth/v1/callback` | pos.thiemcun.io.vn |
+| **dev**  | `thiemcun-pos-web-dev` (`35138590129-0kkk…`) | `cbtpfnvlcszmlbgxunag` | `https://cbtpfnvlcszmlbgxunag.supabase.co/auth/v1/callback` | localhost:5173 |
+
+- Client ID/secret **chỉ** lưu trong Supabase project tương ứng (Auth → Providers → Google) + bản sao gitignored `.secrets/dev-google-oauth.txt` (dev), `.secrets/google-oauth.env` (prod). KHÔNG commit.
+- **Rotation:** rotate secret theo quý hoặc khi nghi lộ — chỉ động vào env bị ảnh hưởng.
+- **Compromise response:** Google Console → client bị lộ → "Reset secret" (hoặc Delete client) → cập nhật secret mới vào Supabase env đó. Prod KHÔNG bị động tới khi xử lý dev.
+- Tạo client mới: Google Console → Credentials → Create OAuth client ID (Web app) → JS origin = app origin, Redirect URI = `<supabase-ref>.supabase.co/auth/v1/callback` → bật provider trên Supabase env đó (Dashboard hoặc Management API `PATCH /config/auth`).

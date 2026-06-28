@@ -36,6 +36,17 @@ export async function signInWithGoogle() {
   });
 }
 
+// Magic link: gửi email chứa liên kết đăng nhập (không cần mật khẩu).
+// Dùng tốt cho nhân viên nhận lời mời — bấm link là vào, tự tạo tài khoản nếu chưa có.
+export async function signInWithMagicLink(email, fullName) {
+  if (!supabase) throw new Error("Auth chưa cấu hình");
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin, data: { full_name: fullName || email } },
+  });
+  if (error) throw new Error(viError(error.message));
+}
+
 export async function signOut() {
   if (supabase) await supabase.auth.signOut();
 }
@@ -81,8 +92,6 @@ export async function unenrollMfa(factorId) {
 function viError(msg = "") {
   const m = msg.toLowerCase();
   if (m.includes("invalid login")) return "Email hoặc mật khẩu không đúng.";
-  if (m.includes("cấp quyền") || m.includes("not authorized") || m.includes("database error"))
-    return "Email chưa được cấp quyền truy cập shop. Liên hệ admin.";
   if (m.includes("already registered")) return "Email này đã có tài khoản — hãy đăng nhập.";
   if (m.includes("password")) return "Mật khẩu chưa đạt yêu cầu (tối thiểu 6 ký tự).";
   if (m.includes("email")) return "Email không hợp lệ.";

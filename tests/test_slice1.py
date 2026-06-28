@@ -29,7 +29,7 @@ def test_product_soft_delete_removed_from_list():
     pid = p["id"]
     assert client.delete(f"/api/products/{pid}").status_code == 200
     assert all(x["id"] != pid for x in client.get("/api/products").json())  # ẩn khỏi danh sách
-    assert client.delete(f"/api/products/99999").status_code == 404
+    assert client.delete("/api/products/99999").status_code == 404
 
 
 def test_customer_list_has_stats():
