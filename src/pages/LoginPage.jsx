@@ -3,7 +3,7 @@ import { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithMagicLink
 
 // Trang đăng nhập — POS free cho shop nhỏ. Hero (trái) + form (phải).
 // Ai cũng đăng ký được: đăng ký xong tự tạo cửa hàng riêng (multi-tenant).
-export default function LoginPage() {
+export default function LoginPage({ inviteToken }) {
   const [mode, setMode] = useState("login"); // login | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +59,11 @@ export default function LoginPage() {
               ? "Quản lý bán hàng, sản phẩm, nhân viên — miễn phí, dễ dùng."
               : "Tạo tài khoản free — bạn sẽ có ngay cửa hàng của riêng mình."}
           </p>
+          {inviteToken && (
+            <div className="banner banner-ok" style={{ marginBottom: 16 }}>
+              <i className="ph ph-envelope-simple" /> Bạn có lời mời vào một cửa hàng — đăng nhập/đăng ký để nhận.
+            </div>
+          )}
 
           <form onSubmit={submit}>
             {mode === "signup" && (

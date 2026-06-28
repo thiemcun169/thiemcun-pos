@@ -1,24 +1,5 @@
-// Cửa hàng đang hoạt động (active shop) + áp dụng màu thương hiệu.
-// Lưu id ở localStorage để giữ nguyên lựa chọn khi tải lại trang.
-const KEY = "tc_active_shop";
-
-let _activeShopId = (typeof localStorage !== "undefined" && localStorage.getItem(KEY)) || null;
-
-export function getActiveShopId() {
-  return _activeShopId;
-}
-
-export function setActiveShopId(id) {
-  _activeShopId = id || null;
-  try {
-    if (id) localStorage.setItem(KEY, id);
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* localStorage có thể bị chặn — bỏ qua */
-  }
-}
-
-// Đổi màu thương hiệu của shop -> set CSS variable. Các tint tự suy ra (color-mix).
+// Áp dụng màu thương hiệu của cửa hàng -> CSS variables. (Luật 1-shop: không cần
+// lưu "active shop id" nữa — cửa hàng của user chính là me.shop_id.)
 export function applyTheme(shop) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;

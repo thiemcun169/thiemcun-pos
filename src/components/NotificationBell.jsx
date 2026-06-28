@@ -24,9 +24,9 @@ export default function NotificationBell({ onAcceptedInvite }) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  async function accept(shopId) {
-    try { await api.acceptInvite(shopId); await reload(); onAcceptedInvite?.(shopId); }
-    catch { /* im lặng */ }
+  async function accept(token) {
+    try { await api.joinByToken(token); await reload(); onAcceptedInvite?.(); }
+    catch (e) { alert(e.message); }
   }
 
   const count = items.length;
@@ -49,8 +49,8 @@ export default function NotificationBell({ onAcceptedInvite }) {
               <div className="notif-body">
                 <div className="notif-title">{n.title}</div>
                 <div className="notif-sub">{n.body}</div>
-                {n.type === "invite" && (
-                  <button className="btn btn-primary btn-xs" onClick={() => accept(n.shop_id)}>Chấp nhận</button>
+                {n.type === "invite" && n.token && (
+                  <button className="btn btn-primary btn-xs" onClick={() => accept(n.token)}>Chấp nhận</button>
                 )}
               </div>
             </div>

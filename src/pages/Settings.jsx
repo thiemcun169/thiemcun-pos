@@ -6,7 +6,7 @@ import { initialOf } from "../lib/ui";
 import { useToasts, Toasts } from "../components/Toasts.jsx";
 
 // Cài đặt: Hồ sơ · Bảo mật & 2FA · Cửa hàng (owner) · Dữ liệu (owner).
-export default function Settings({ role, user, shop, onShopUpdated }) {
+export default function Settings({ role, user, shop, onShopUpdated, onLeftShop }) {
   const isOwner = role === "owner";
   const [tab, setTab] = useState("profile");
   const { toasts, push, dismiss } = useToasts();
@@ -20,10 +20,10 @@ export default function Settings({ role, user, shop, onShopUpdated }) {
         {isOwner && <button className={`tab ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")}>Dữ liệu</button>}
       </div>
 
-      {tab === "profile" && <ProfileTab user={user} role={role} />}
+      {tab === "profile" && <ProfileTab user={user} role={role} shop={shop} push={push} onLeftShop={onLeftShop} />}
       {tab === "security" && <SecurityTab isOwner={isOwner} push={push} />}
       {tab === "shop" && isOwner && <ShopTab push={push} onShopUpdated={onShopUpdated} />}
-      {tab === "data" && isOwner && <DataTab push={push} onShopUpdated={onShopUpdated} />}
+      {tab === "data" && isOwner && <DataTab push={push} onShopUpdated={onShopUpdated} onLeftShop={onLeftShop} />}
 
       <Toasts toasts={toasts} dismiss={dismiss} />
     </div>
@@ -31,19 +31,41 @@ export default function Settings({ role, user, shop, onShopUpdated }) {
 }
 
 // --- Hồ sơ ---
-function ProfileTab({ user, role }) {
+function ProfileTab({ user, role, shop, push, onLeftShop }) {
   const roleLabel = role === "owner" ? "Chủ cửa hàng" : "Nhân viên";
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function leave() {
+    setBusy(true);
+    try { await api.leaveShop(); push?.("Đã rời cửa hàng"); onLeftShop?.(); }
+    catch (e) { push?.(e.message, "error"); setBusy(false); setConfirm(false); }
+  }
+
   return (
-    <div className="card pad">
-      <div className="profile-head">
-        <div className="avatar xl">{initialOf(user.full_name || user.email)}</div>
-        <div><div className="pname">{user.full_name || user.email}</div><div className="prole">{roleLabel}</div></div>
+    <div className="stack">
+      <div className="card pad">
+        <div className="profile-head">
+          <div className="avatar xl">{initialOf(user.full_name || user.email)}</div>
+          <div><div className="pname">{user.full_name || user.email}</div><div className="prole">{roleLabel} · {shop?.name || ""}</div></div>
+        </div>
+        <div className="form-grid">
+          <div className="field"><label className="field-label">Họ và tên</label><input className="input" defaultValue={user.full_name || ""} disabled /></div>
+          <div className="field"><label className="field-label">Vai trò</label><input className="input" defaultValue={roleLabel} disabled /></div>
+          <div className="field full"><label className="field-label">Email <span className="hint">(không thể thay đổi)</span></label><input className="input" value={user.email} disabled /></div>
+        </div>
       </div>
-      <div className="form-grid">
-        <div className="field"><label className="field-label">Họ và tên</label><input className="input" defaultValue={user.full_name || ""} disabled /></div>
-        <div className="field"><label className="field-label">Vai trò</label><input className="input" defaultValue={roleLabel} disabled /></div>
-        <div className="field full"><label className="field-label">Email <span className="hint">(không thể thay đổi)</span></label><input className="input" value={user.email} disabled /></div>
-      </div>
+
+      {/* Nhân viên có thể tự rời cửa hàng. Chủ shop phải chuyển quyền/xoá (ở tab Dữ liệu). */}
+      {role === "staff" && (
+        <div className="card pad">
+          <div className="card-title">Rời cửa hàng</div>
+          <div className="card-sub" style={{ marginBottom: 14 }}>Bạn sẽ không còn truy cập dữ liệu cửa hàng này. Có thể tạo cửa hàng mới hoặc nhận lời mời khác sau đó.</div>
+          {confirm
+            ? <div className="confirm-box"><span style={{ color: "var(--danger)" }}>Chắc chắn rời?</span><button className="btn btn-danger" disabled={busy} onClick={leave}>{busy ? "…" : "Rời cửa hàng"}</button><button className="btn" onClick={() => setConfirm(false)}>Huỷ</button></div>
+            : <button className="btn btn-danger-outline" onClick={() => setConfirm(true)}><i className="ph ph-sign-out" /> Rời cửa hàng</button>}
+        </div>
+      )}
     </div>
   );
 }
@@ -185,19 +207,24 @@ function ShopTab({ push, onShopUpdated }) {
   );
 }
 
-// --- Dữ liệu: xoá sạch / nạp lại dữ liệu mẫu (owner) ---
-function DataTab({ push, onShopUpdated }) {
-  const [confirm, setConfirm] = useState(null); // 'clear' | 'reseed'
+// --- Dữ liệu + vòng đời cửa hàng (owner) ---
+function DataTab({ push, onShopUpdated, onLeftShop }) {
+  const [confirm, setConfirm] = useState(null); // 'clear' | 'reseed' | 'delete'
   const [busy, setBusy] = useState(false);
+  const [staff, setStaff] = useState([]);
+  const [transferId, setTransferId] = useState("");
 
-  async function doClear() {
+  const loadStaff = useCallback(async () => {
+    try {
+      const ms = (await api.listMembers()).members || [];
+      setStaff(ms.filter((m) => m.user_id && m.status === "active" && m.role === "staff"));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { loadStaff(); }, [loadStaff]);
+
+  async function run(fn, okMsg, after) {
     setBusy(true);
-    try { await api.clearShopData(); push("Đã xoá toàn bộ dữ liệu bán hàng", "info"); setConfirm(null); onShopUpdated?.(); }
-    catch (e) { push(e.message, "error"); } finally { setBusy(false); }
-  }
-  async function doReseed() {
-    setBusy(true);
-    try { await api.reseedShop(); push("Đã nạp lại dữ liệu mẫu"); setConfirm(null); onShopUpdated?.(); }
+    try { await fn(); push(okMsg); setConfirm(null); after?.(); }
     catch (e) { push(e.message, "error"); } finally { setBusy(false); }
   }
 
@@ -207,16 +234,39 @@ function DataTab({ push, onShopUpdated }) {
         <div className="card-title">Nạp lại dữ liệu mẫu</div>
         <div className="card-sub" style={{ marginBottom: 14 }}>Xoá dữ liệu hiện tại và thêm bộ sản phẩm + khách hàng mẫu để dùng thử.</div>
         {confirm === "reseed"
-          ? <div className="confirm-box"><span>Xoá dữ liệu hiện tại và nạp mẫu?</span><button className="btn btn-primary" disabled={busy} onClick={doReseed}>{busy ? "…" : "Nạp mẫu"}</button><button className="btn" onClick={() => setConfirm(null)}>Huỷ</button></div>
+          ? <div className="confirm-box"><span>Xoá dữ liệu hiện tại và nạp mẫu?</span><button className="btn btn-primary" disabled={busy} onClick={() => run(api.reseedShop, "Đã nạp lại dữ liệu mẫu", onShopUpdated)}>{busy ? "…" : "Nạp mẫu"}</button><button className="btn" onClick={() => setConfirm(null)}>Huỷ</button></div>
           : <button className="btn" onClick={() => setConfirm("reseed")}><i className="ph ph-flask" /> Nạp dữ liệu mẫu</button>}
+      </div>
+
+      <div className="card pad">
+        <div className="card-title">Chuyển quyền chủ cửa hàng</div>
+        <div className="card-sub" style={{ marginBottom: 14 }}>Chọn một nhân viên để trao quyền chủ. Bạn sẽ trở thành nhân viên.</div>
+        {staff.length === 0
+          ? <div className="muted" style={{ fontSize: 13 }}>Chưa có nhân viên nào để chuyển quyền.</div>
+          : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <select className="select" style={{ maxWidth: 280 }} value={transferId} onChange={(e) => setTransferId(e.target.value)}>
+                <option value="">— Chọn nhân viên —</option>
+                {staff.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+              </select>
+              {confirm === "transfer" && transferId
+                ? <div className="confirm-box"><span>Trao quyền chủ?</span><button className="btn btn-primary" disabled={busy} onClick={() => run(() => api.transferOwnership(transferId), "Đã chuyển quyền chủ", onShopUpdated)}>{busy ? "…" : "Xác nhận"}</button><button className="btn" onClick={() => setConfirm(null)}>Huỷ</button></div>
+                : <button className="btn" disabled={!transferId} onClick={() => setConfirm("transfer")}><i className="ph ph-crown-simple" /> Chuyển quyền</button>}
+            </div>
+          )}
       </div>
 
       <div className="card pad danger-zone">
         <div className="card-title" style={{ color: "var(--danger)" }}>Vùng nguy hiểm</div>
-        <div className="card-sub" style={{ marginBottom: 14 }}>Xoá sạch toàn bộ sản phẩm, đơn hàng, khách hàng của cửa hàng này. Không thể hoàn tác.</div>
-        {confirm === "clear"
-          ? <div className="confirm-box"><span style={{ color: "var(--danger)" }}>Chắc chắn xoá hết? Hành động không thể hoàn tác.</span><button className="btn btn-danger" disabled={busy} onClick={doClear}>{busy ? "…" : "Xoá hết"}</button><button className="btn" onClick={() => setConfirm(null)}>Huỷ</button></div>
-          : <button className="btn btn-danger-outline" onClick={() => setConfirm("clear")}><i className="ph ph-trash" /> Xoá toàn bộ dữ liệu</button>}
+        <div className="card-sub" style={{ marginBottom: 14 }}>Xoá dữ liệu bán hàng, hoặc xoá hẳn cửa hàng. Không thể hoàn tác.</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {confirm === "clear"
+            ? <div className="confirm-box"><span style={{ color: "var(--danger)" }}>Xoá toàn bộ sản phẩm/đơn/khách?</span><button className="btn btn-danger" disabled={busy} onClick={() => run(api.clearShopData, "Đã xoá dữ liệu bán hàng", onShopUpdated)}>{busy ? "…" : "Xoá hết"}</button><button className="btn" onClick={() => setConfirm(null)}>Huỷ</button></div>
+            : <button className="btn btn-danger-outline" onClick={() => setConfirm("clear")}><i className="ph ph-trash" /> Xoá dữ liệu bán hàng</button>}
+          {confirm === "delete"
+            ? <div className="confirm-box"><span style={{ color: "var(--danger)" }}>XOÁ HẲN cửa hàng này?</span><button className="btn btn-danger" disabled={busy} onClick={() => run(api.deleteShop, "Đã xoá cửa hàng", onLeftShop)}>{busy ? "…" : "Xoá cửa hàng"}</button><button className="btn" onClick={() => setConfirm(null)}>Huỷ</button></div>
+            : <button className="btn btn-danger-outline" onClick={() => setConfirm("delete")}><i className="ph ph-buildings" /> Xoá cửa hàng</button>}
+        </div>
       </div>
     </div>
   );
