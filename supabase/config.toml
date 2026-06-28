@@ -1,0 +1,16 @@
+# Supabase CLI config — dùng cho local dev (supabase start) + CI migrations.
+# Mỗi môi trường (dev/staging/prod) là 1 project ref riêng; CI link theo secret.
+project_id = "thiemcun-pos"
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enable_signup = true
+# Email + password và Google OAuth (cấu hình provider trên dashboard / qua API).
+[auth.email]
+enable_confirmations = false   # demo: tắt xác nhận email (prod nên bật + cấu hình SMTP)
+
+[studio]
+enabled = true

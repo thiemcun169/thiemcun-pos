@@ -1,0 +1,56 @@
+name: DB Migrations (Supabase)
+
+# Áp migration theo môi trường — KHÔNG bao giờ sửa schema prod trực tiếp.
+#   * push lên main      -> áp vào STAGING
+#   * tag v*.*.*         -> áp vào PROD (release có kiểm soát)
+#   * chạy tay (dispatch) -> chọn môi trường
+#
+# Secrets cần đặt (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_ACCESS_TOKEN
+#   SUPABASE_STAGING_REF,  SUPABASE_STAGING_DB_PASSWORD
+#   SUPABASE_PROD_REF,     SUPABASE_PROD_DB_PASSWORD
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]   # -> STAGING tự động
+  workflow_dispatch:                      # -> chọn môi trường (prod release có kiểm soát)
+    inputs:
+      environment:
+        description: "Môi trường áp migration"
+        required: true
+        default: staging
+        type: choice
+        options: [staging, prod]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Pick environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          else
+            ENV="staging"
+          fi
+          echo "name=$ENV" >> "$GITHUB_OUTPUT"
+          echo "Áp migration vào: $ENV"
+
+      - name: Apply migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ "${{ steps.env.outputs.name }}" = "prod" ]; then
+            REF="${{ secrets.SUPABASE_PROD_REF }}"; PW="${{ secrets.SUPABASE_PROD_DB_PASSWORD }}"
+          else
+            REF="${{ secrets.SUPABASE_STAGING_REF }}"; PW="${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}"
+          fi
+          supabase link --project-ref "$REF" --password "$PW"
+          supabase db push --password "$PW"
