@@ -28,6 +28,9 @@ Settings → Environments → **production** → bật **Required reviewers** (c
 `release.yml` dừng chờ bạn duyệt trước khi migrate+deploy prod.
 
 ## ⚠️ Lưu ý
-- Vercel deploy trong CI **chỉ chạy khi account đã verify** (hiện `isVerified:false` → bước deploy có thể
-  fail cho tới khi thêm payment method). Test/migrate vẫn chạy bình thường.
+- **`uv` bắt buộc trong job deploy.** Vercel build phần Python (FastAPI) gọi `uv` để cài deps khi
+  build **cục bộ** trên runner. Runner không có sẵn `uv` → `spawn uv ENOENT` làm chết bước deploy.
+  Vì vậy 3 job build (preview/staging/prod) đều cài `uv` trước `vercel build`.
+- Vercel deploy trong CI **chỉ chạy khi account đã verify** (đã thêm payment method → `isVerified:true`,
+  deploy chạy được). Trước khi verify thì chỉ test/migrate chạy, bước deploy bị block.
 - Đặt **required status check** = `pr.yml / verify` (Settings → Branches) để chặn merge khi test đỏ.
