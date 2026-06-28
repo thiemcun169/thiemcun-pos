@@ -7,6 +7,21 @@ import "./styles.css";
 import { inject } from "@vercel/analytics";
 inject();
 
+// --- Google Analytics 4 (tuỳ chọn): chỉ bật khi có VITE_GA_MEASUREMENT_ID ---
+const gaId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+if (gaId) {
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+  document.head.appendChild(s);
+  window.dataLayer = window.dataLayer || [];
+  // eslint-disable-next-line no-inner-declarations
+  function gtag() { window.dataLayer.push(arguments); }
+  gtag("js", new Date());
+  gtag("config", gaId);
+  window.gtag = gtag;
+}
+
 // --- Error tracking (buổi 3, Lab 5): Sentry, chỉ bật khi có DSN ---
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 if (sentryDsn) {
