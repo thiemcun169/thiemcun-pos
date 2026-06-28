@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { authEnabled, supabase, signOut } from "./lib/supabaseClient";
+import { readCache, writeCache } from "./lib/cache";
 import LoginPage from "./pages/LoginPage.jsx";
 import ForceChangePassword from "./pages/ForceChangePassword.jsx";
 import Sales from "./pages/Sales.jsx";
@@ -51,13 +52,14 @@ export default function App() {
     api.me().then(setUser).catch((e) => setError(e.message));
   }, [session]);
 
-  // 3) Nạp dữ liệu (chỉ khi đã đăng nhập, hoặc demo). Báo cáo chỉ owner.
-  const reload = useCallback(async (role) => {
-    setLoading(true); setError(null);
+  // 3) Nạp dữ liệu (stale-while-revalidate). silent=true: đang có cache, revalidate ngầm.
+  const reload = useCallback(async (role, silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
     try {
-      const tasks = [api.listProducts(), api.listCustomers(), api.listOrders()];
-      const [p, c, o] = await Promise.all(tasks);
+      const [p, c, o] = await Promise.all([api.listProducts(), api.listCustomers(), api.listOrders()]);
       setProducts(p); setCustomers(c); setOrders(o);
+      writeCache("core", { p, c, o });
       if (role === "owner") {
         try { setReport(await api.reportSummary()); } catch { /* staff không xem được */ }
       } else { setReport(null); }
@@ -65,8 +67,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!authEnabled) { reload("owner"); return; }
-    if (user && !user.must_change_password) reload(user.role);
+    const ready = !authEnabled || (user && !user.must_change_password);
+    if (!ready) return;
+    const role = authEnabled ? user.role : "owner";
+    // Hiển thị NGAY dữ liệu cache (nếu có) -> cảm giác tức thì, rồi revalidate ngầm.
+    const cached = readCache("core");
+    if (cached) {
+      setProducts(cached.p || []); setCustomers(cached.c || []); setOrders(cached.o || []);
+      setLoading(false);
+      reload(role, true);
+    } else {
+      reload(role);
+    }
   }, [user, reload]);
 
   // --- Màn hình ---

@@ -1,0 +1,15 @@
+name: Keep warm
+# Ping /api/health định kỳ: Supabase free ngủ sau 7 ngày không hoạt động + giảm cold start.
+# Mỗi 30' để tiết kiệm GitHub Actions minutes (free 2000'/tháng). URL đặt ở repo Variables.
+on:
+  schedule: [{ cron: "*/30 * * * *" }]
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping staging + prod health
+        run: |
+          for u in "${{ vars.STAGING_URL }}" "${{ vars.PROD_URL }}"; do
+            if [ -n "$u" ]; then echo "ping $u"; curl -sf --max-time 20 "$u/api/health" || echo "  (warming…)"; fi
+          done
