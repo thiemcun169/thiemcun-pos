@@ -1,97 +1,109 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { vnd, shortDate } from "../lib/format";
+import { initialOf } from "../lib/ui";
+import { useToasts, Toasts } from "../components/Toasts.jsx";
 
-// Màn Khách hàng: danh sách (lượt mua + tổng chi tiêu) + thêm + chi tiết (lịch sử mua).
+// Màn Khách hàng: bảng + thêm (modal) + hồ sơ chi tiết (drawer, lịch sử mua).
 export default function Customers() {
   const [rows, setRows] = useState([]);
   const [detail, setDetail] = useState(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "" });
-  const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const { toasts, push, dismiss } = useToasts();
 
   const reload = useCallback(async () => {
-    try { setRows(await api.listCustomers()); } catch (e) { setErr(e.message); }
-  }, []);
+    try { setRows(await api.listCustomers()); } catch (e) { push(e.message, "error"); }
+  }, [push]);
   useEffect(() => { reload(); }, [reload]);
 
   async function open(id) {
-    try { setDetail(await api.getCustomer(id)); } catch (e) { setErr(e.message); }
+    try { setDetail(await api.getCustomer(id)); } catch (e) { push(e.message, "error"); }
   }
   async function addCustomer(e) {
-    e.preventDefault(); setBusy(true); setErr(null);
+    e.preventDefault(); setBusy(true);
     try {
       await api.createCustomer({ name: form.name.trim(), phone: form.phone.trim() || null });
-      setForm({ name: "", phone: "" }); setAdding(false); await reload();
-    } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+      setForm({ name: "", phone: "" }); setAdding(false); push(`Đã thêm khách hàng "${form.name.trim()}"`); await reload();
+    } catch (e2) { push(e2.message, "error"); } finally { setBusy(false); }
   }
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div><h1>Khách hàng</h1><div className="muted">Cơ sở dữ liệu khách</div></div>
-        <button className="btn btn-primary" onClick={() => setAdding(true)}>+ Thêm khách hàng</button>
-      </header>
-      {err && <div className="banner banner-error">⚠️ {err}</div>}
+      <div className="toolbar end">
+        <button className="btn btn-primary" onClick={() => setAdding(true)}><i className="ph ph-plus" /> Thêm khách hàng</button>
+      </div>
 
       <div className="card">
         <table className="data-table">
-          <thead><tr><th>KHÁCH HÀNG</th><th>SỐ ĐIỆN THOẠI</th><th>SỐ LƯỢT MUA</th><th>TỔNG CHI TIÊU</th></tr></thead>
+          <thead><tr><th>Khách hàng</th><th>Số điện thoại</th><th className="c">Số lượt mua</th><th className="r">Tổng chi tiêu</th></tr></thead>
           <tbody>
             {rows.map((c) => (
               <tr key={c.id} className="clickable" onClick={() => open(c.id)}>
-                <td><div className="avatar-row"><span className="avatar">{(c.name || "?")[0]}</span><span className="cell-strong">{c.name}</span></div></td>
+                <td><div className="name-cell"><div className="avatar sm">{initialOf(c.name)}</div><span className="cell-strong">{c.name}</span></div></td>
                 <td>{c.phone || "—"}</td>
-                <td>{c.purchase_count ?? 0} lượt</td>
-                <td className="cell-strong">{vnd(c.total_spent || 0)}</td>
+                <td className="c">{c.purchase_count ?? 0}</td>
+                <td className="r cell-strong">{vnd(c.total_spent || 0)}</td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={4} className="muted">Chưa có khách hàng.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={4} className="empty">Chưa có khách hàng.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {adding && (
-        <div className="modal-overlay" onClick={() => setAdding(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Thêm khách hàng</h2>
-            <form onSubmit={addCustomer} className="auth-form">
-              <label>Tên<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-              <label>Số điện thoại<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-              <div className="modal-actions">
-                <button type="button" className="btn" onClick={() => setAdding(false)}>Huỷ</button>
-                <button className="btn btn-primary" disabled={busy}>{busy ? "…" : "Lưu"}</button>
-              </div>
-            </form>
-          </div>
+        <div className="modal-overlay">
+          <div className="scrim" onClick={() => setAdding(false)} />
+          <form className="modal sm" onSubmit={addCustomer}>
+            <div className="modal-head"><span className="title">Thêm khách hàng</span>
+              <button type="button" className="modal-x" onClick={() => setAdding(false)}><i className="ph ph-x" /></button>
+            </div>
+            <div className="modal-body form-cols">
+              <div className="field"><label className="field-label">Họ và tên</label><input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="VD: Nguyễn Văn A" /></div>
+              <div className="field"><label className="field-label">Số điện thoại</label><input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="VD: 0901 234 567" /></div>
+            </div>
+            <div className="modal-foot">
+              <button type="button" className="btn" onClick={() => setAdding(false)}>Huỷ</button>
+              <button className="btn btn-primary" disabled={busy}>{busy ? "…" : "Thêm"}</button>
+            </div>
+          </form>
         </div>
       )}
 
       {detail && (
-        <div className="drawer-overlay" onClick={() => setDetail(null)}>
-          <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-overlay">
+          <div className="scrim" onClick={() => setDetail(null)} />
+          <div className="drawer">
             <div className="drawer-head">
-              <div><h2>{detail.name}</h2><div className="muted">{detail.phone || "—"}</div></div>
-              <button className="btn-link" onClick={() => setDetail(null)}>Đóng</button>
+              <span className="title">Hồ sơ khách hàng</span>
+              <button className="modal-x" onClick={() => setDetail(null)}><i className="ph ph-x" /></button>
             </div>
-            <div className="profile-grid">
-              <div><span className="muted">Số lượt mua</span><div className="cell-strong">{detail.purchase_count ?? detail.orders?.length ?? 0}</div></div>
-              <div><span className="muted">Tổng chi tiêu</span><div className="cell-strong">{vnd(detail.total_spent || 0)}</div></div>
+            <div className="drawer-body">
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+                <div className="avatar lg">{initialOf(detail.name)}</div>
+                <div><div style={{ fontSize: 17, fontWeight: 700 }}>{detail.name}</div><div className="muted" style={{ fontSize: 13 }}>{detail.phone || "—"}</div></div>
+              </div>
+              <div className="stat-grid">
+                <div className="stat-box"><div className="l">Tổng chi tiêu</div><div className="v accent">{vnd(detail.total_spent || 0)}</div></div>
+                <div className="stat-box"><div className="l">Số lượt mua</div><div className="v">{detail.purchase_count ?? detail.orders?.length ?? 0}</div></div>
+              </div>
+              <div className="section-label">Lịch sử mua hàng</div>
+              {(detail.orders || []).length === 0 ? <div className="empty">Chưa có giao dịch nào.</div> : (
+                <div className="hist-list">
+                  {detail.orders.map((o) => (
+                    <div className="hist-item" key={o.id}>
+                      <div><div className="hid">#{o.id}</div><div className="hdate">{shortDate(o.created_at)}</div></div>
+                      <span className="cell-strong">{vnd(o.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <h3>Lịch sử mua</h3>
-            <table className="data-table">
-              <thead><tr><th>MÃ ĐƠN</th><th>NGÀY</th><th>TỔNG</th></tr></thead>
-              <tbody>
-                {(detail.orders || []).map((o) => (
-                  <tr key={o.id}><td>#{o.id}</td><td>{shortDate(o.created_at)}</td><td>{vnd(o.total)}</td></tr>
-                ))}
-                {(!detail.orders || detail.orders.length === 0) && <tr><td colSpan={3} className="muted">Chưa có đơn nào.</td></tr>}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
+      <Toasts toasts={toasts} dismiss={dismiss} />
     </div>
   );
 }

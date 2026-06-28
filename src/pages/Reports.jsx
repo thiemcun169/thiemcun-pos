@@ -1,106 +1,120 @@
 import { useMemo } from "react";
 import { vnd, shortDate } from "../lib/format";
 
-// Dashboard "Tổng quan & Báo cáo" — bám theo prototype Claude Design:
-// 4 KPI card · biểu đồ doanh thu theo ngày · top sản phẩm · đơn gần đây · cảnh báo tồn.
-export default function Reports({ report, orders = [], customers = [] }) {
-  const stats = useMemo(() => {
+function statusPill(status) {
+  const s = (status || "").toLowerCase();
+  if (s === "paid" || s === "completed" || s === "hoàn thành") return { label: "Hoàn thành", cls: "success" };
+  if (s === "pending" || s === "đang xử lý") return { label: "Đang xử lý", cls: "warn" };
+  if (s === "cancelled" || s === "canceled" || s === "đã huỷ") return { label: "Đã huỷ", cls: "danger" };
+  return { label: status || "Hoàn thành", cls: "success" };
+}
+const k = (n) => Math.round((Number(n) || 0) / 1000) + "k";
+
+// Dashboard "Tổng quan & Báo cáo" — KPI · biểu đồ doanh thu/ngày · top sản phẩm · đơn gần đây · tồn thấp.
+export default function Reports({ report, orders = [], customers = [], products = [] }) {
+  const days = useMemo(() => {
     const byDay = {};
-    let revenue = 0;
     for (const o of orders) {
       const d = new Date(o.created_at || Date.now());
       const key = `${d.getDate()}/${d.getMonth() + 1}`;
       byDay[key] = (byDay[key] || 0) + Number(o.total || 0);
-      revenue += Number(o.total || 0);
     }
-    const days = Object.entries(byDay).slice(-7);
-    const avg = orders.length ? revenue / orders.length : 0;
-    return { revenue, orderCount: orders.length, customerCount: customers.length, avg, days };
-  }, [orders, customers]);
+    return Object.entries(byDay).slice(-7);
+  }, [orders]);
 
-  if (!report) return <div className="page"><div className="loading">Đang tải báo cáo…</div></div>;
+  if (!report) return <div className="page"><div className="empty">Đang tải báo cáo…</div></div>;
 
-  const maxDay = Math.max(1, ...stats.days.map(([, v]) => v));
-  const maxQty = Math.max(1, ...(report.top_products || []).map((t) => t.qty_sold));
-  const recent = orders.slice(0, 6);
+  const revenue = report.revenue ?? orders.reduce((a, o) => a + Number(o.total || 0), 0);
+  const orderCount = report.order_count ?? orders.length;
+  const avg = orderCount ? Math.round(revenue / orderCount) : 0;
+  const maxDay = Math.max(1, ...days.map(([, v]) => v));
+  const top = report.top_products || [];
+  const maxRev = Math.max(1, ...top.map((t) => t.revenue || t.qty_sold));
+  const recent = orders.slice(0, 5);
+  const low = report.low_stock || [];
 
   const KPIS = [
-    { label: "Doanh thu", value: vnd(report.revenue ?? stats.revenue), icon: "💰", sub: "tổng cộng" },
-    { label: "Đơn hàng", value: stats.orderCount, icon: "🧾", sub: `${report.order_count ?? stats.orderCount} đơn` },
-    { label: "Khách hàng", value: stats.customerCount, icon: "🧑", sub: "đang quản lý" },
-    { label: "Giá trị TB/đơn", value: vnd(stats.avg), icon: "📈", sub: "trung bình" },
+    { label: "Doanh thu", value: vnd(revenue), icon: "ph-currency-circle-dollar" },
+    { label: "Đơn hàng", value: String(orderCount), icon: "ph-receipt" },
+    { label: "Khách hàng", value: String(customers.length), icon: "ph-users" },
+    { label: "Giá trị TB/đơn", value: vnd(avg), icon: "ph-chart-line-up" },
   ];
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div><h1>Tổng quan & Báo cáo</h1><div className="muted">Tình hình kinh doanh cửa hàng</div></div>
-      </header>
-
-      <div className="kpi-row">
-        {KPIS.map((k) => (
-          <div className="kpi" key={k.label}>
-            <div className="kpi-top"><span className="kpi-label">{k.label}</span><span className="kpi-icon">{k.icon}</span></div>
-            <div className="kpi-value">{k.value}</div>
-            <div className="kpi-sub">{k.sub}</div>
+      <div className="kpi-grid">
+        {KPIS.map((kp) => (
+          <div className="kpi" key={kp.label}>
+            <div className="kpi-top"><span className="kpi-label">{kp.label}</span><span className="kpi-icon"><i className={`ph ${kp.icon}`} /></span></div>
+            <div className="kpi-value">{kp.value}</div>
+            <div className="kpi-delta up"><i className="ph ph-trend-up" /> {products.length} SP <span className="since">đang kinh doanh</span></div>
           </div>
         ))}
       </div>
 
       <div className="dash-grid">
-        <div className="card pad dash-main">
-          <h2>Doanh thu theo ngày</h2>
-          {stats.days.length === 0 ? <div className="empty">Chưa có dữ liệu.</div> : (
+        {/* Biểu đồ doanh thu */}
+        <div className="card pad">
+          <div style={{ marginBottom: 24 }}><div className="card-title">Doanh thu</div><div className="card-sub">Theo ngày (gần đây)</div></div>
+          {days.length === 0 ? <div className="empty">Chưa có dữ liệu.</div> : (
             <div className="chart">
-              {stats.days.map(([day, v], i) => (
+              {days.map(([day, v], i) => (
                 <div className="chart-col" key={day}>
-                  <div className="chart-val">{(v / 1000).toFixed(0)}k</div>
-                  <div className={`chart-bar ${i === stats.days.length - 1 ? "now" : ""}`} style={{ height: `${(v / maxDay) * 140 + 8}px` }} />
-                  <div className="chart-x">{day}</div>
+                  <span className="v">{k(v)}</span>
+                  <div className={`bar ${i === days.length - 1 ? "now" : ""}`} style={{ height: `${(v / maxDay) * 100}%` }} />
+                  <span className="x">{day}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
+        {/* Top sản phẩm */}
         <div className="card pad">
-          <h2>Sản phẩm bán chạy</h2>
-          {(report.top_products || []).length === 0 ? <div className="empty">Chưa có dữ liệu.</div> : (
-            <ul className="bars">
-              {report.top_products.map((t) => (
-                <li key={t.product_name}>
-                  <div className="bar-head"><span>{t.product_name}</span><span className="bar-val">{t.qty_sold} đã bán</span></div>
-                  <div className="bar-track"><div className="bar-fill" style={{ width: `${(t.qty_sold / maxQty) * 100}%` }} /></div>
-                </li>
+          <div style={{ marginBottom: 18 }}><div className="card-title">Sản phẩm bán chạy</div><div className="card-sub">Theo doanh thu</div></div>
+          {top.length === 0 ? <div className="empty">Chưa có dữ liệu.</div> : (
+            <div className="bars">
+              {top.map((t) => (
+                <div className="bar-row" key={t.product_name}>
+                  <div className="bar-head"><span className="bar-name">{t.product_name}</span><span className="bar-meta">{t.qty_sold} đã bán</span></div>
+                  <div className="bar-track"><div className="bar-fill" style={{ width: `${((t.revenue || t.qty_sold) / maxRev) * 100}%` }} /></div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
+      </div>
 
-        <div className="card pad dash-main">
-          <h2>Đơn hàng gần đây</h2>
+      <div className="dash-grid">
+        {/* Đơn hàng gần đây */}
+        <div className="card">
+          <div className="card-head"><span className="card-title">Đơn hàng gần đây</span></div>
           <table className="data-table">
-            <thead><tr><th>MÃ ĐƠN</th><th>NGÀY</th><th>TRẠNG THÁI</th><th>TỔNG</th></tr></thead>
+            <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Trạng thái</th><th className="r">Tổng</th></tr></thead>
             <tbody>
-              {recent.map((o) => (
-                <tr key={o.id}>
-                  <td className="cell-strong">#{o.id}</td>
-                  <td>{shortDate(o.created_at)}</td>
-                  <td><span className="pill active">{o.status === "paid" ? "Hoàn thành" : o.status}</span></td>
-                  <td className="cell-strong">{vnd(o.total)}</td>
-                </tr>
-              ))}
-              {recent.length === 0 && <tr><td colSpan={4} className="muted">Chưa có đơn nào.</td></tr>}
+              {recent.map((o) => {
+                const sp = statusPill(o.status);
+                return (
+                  <tr key={o.id}>
+                    <td className="cell-strong">#{o.id}</td>
+                    <td>{o.customer_name || "Khách lẻ"}</td>
+                    <td><span className={`pill ${sp.cls}`}>{sp.label}</span></td>
+                    <td className="r cell-strong">{vnd(o.total)}</td>
+                  </tr>
+                );
+              })}
+              {recent.length === 0 && <tr><td colSpan={4} className="empty">Chưa có đơn nào.</td></tr>}
             </tbody>
           </table>
         </div>
 
+        {/* Sắp hết hàng */}
         <div className="card pad">
-          <h2>⚠️ Sắp hết hàng</h2>
-          {(report.low_stock || []).length === 0 ? <div className="empty">Tất cả còn đủ hàng 👍</div> : (
+          <div style={{ marginBottom: 18 }}><div className="card-title">Sắp hết hàng</div><div className="card-sub">Cần nhập thêm</div></div>
+          {low.length === 0 ? <div className="empty">Tất cả còn đủ hàng 👍</div> : (
             <ul className="low-list">
-              {report.low_stock.map((p) => (
-                <li key={p.id}><span>{p.name}</span><span className="pill disabled">còn {p.stock}</span></li>
+              {low.map((p) => (
+                <li key={p.id}><span>{p.name}</span><span className="pill stock low">còn {p.stock}</span></li>
               ))}
             </ul>
           )}
