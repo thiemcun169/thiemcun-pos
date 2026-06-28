@@ -39,4 +39,13 @@ export const api = {
   createOrder: (data) => request("/orders", { method: "POST", body: JSON.stringify(data) }),
 
   reportSummary: () => request("/report/summary"),
+
+  // --- RBAC ---
+  me: () => request("/me"),
+  passwordChanged: () => request("/me/password-changed", { method: "POST" }),
+  listEmployees: () => request("/employees"),
+  inviteEmployee: (data) => request("/employees", { method: "POST", body: JSON.stringify(data) }),
+  updateEmployee: (id, data) => request(`/employees/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  revokeInvite: (email) => request(`/employees/pending/${encodeURIComponent(email)}`, { method: "DELETE" }),
+  auditLog: () => request("/audit"),
 };
