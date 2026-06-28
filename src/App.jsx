@@ -56,27 +56,10 @@ export default function App() {
   }, [reload]);
 
   useEffect(() => {
-    // Chế độ mở: tải luôn. Chế độ Auth: tải sau khi biết trạng thái đăng nhập.
-    if (!authEnabled) reload();
-    else if (user) reload();
-    else setLoading(false);
-  }, [reload, user]);
-
-  // Màn hình yêu cầu đăng nhập (chỉ khi bật Auth và chưa đăng nhập).
-  if (authEnabled && !user) {
-    return (
-      <div className="login-screen">
-        <div className="login-card">
-          <div className="brand-mark">🛒</div>
-          <h1>ThiemCun POS</h1>
-          <p>Quản lý bán hàng cho cửa hàng nhỏ</p>
-          <button className="btn btn-google" onClick={signInWithGoogle}>
-            <span className="g">G</span> Đăng nhập với Google
-          </button>
-        </div>
-      </div>
-    );
-  }
+    // App luôn dùng được (khách xem hàng + bán). Đăng nhập Google là TUỲ CHỌN,
+    // khi đăng nhập thì đơn hàng được gắn với tài khoản.
+    reload();
+  }, [reload]);
 
   return (
     <div className="app">
@@ -101,13 +84,17 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          {authEnabled && user ? (
+          {!authEnabled ? (
+            <div className="demo-badge">Chế độ demo (chưa bật đăng nhập)</div>
+          ) : user ? (
             <div className="user-box">
               <div className="user-name">{user.email}</div>
               <button className="btn-link" onClick={signOut}>Đăng xuất</button>
             </div>
           ) : (
-            <div className="demo-badge">Chế độ demo (chưa bật đăng nhập)</div>
+            <button className="btn btn-google btn-google-sm" onClick={signInWithGoogle}>
+              <span className="g">G</span> Đăng nhập với Google
+            </button>
           )}
           <div className="built-by">Dựng bằng Claude Code</div>
         </div>
