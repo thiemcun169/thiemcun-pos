@@ -13,8 +13,8 @@
 ![React](https://img.shields.io/badge/React-Vite-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688) ![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ecf8e) ![license](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ Tính năng
-- 🏬 **Đa cửa hàng (multi-tenant)** — 1 tài khoản tạo/đứng nhiều cửa hàng; dữ liệu tách biệt hoàn toàn theo shop.
-- 👥 **Phân quyền (RBAC)** — chủ (owner) & nhân viên (staff); mời nhân viên qua **email**, nhận lời mời qua chuông thông báo.
+- 🏬 **Đa cửa hàng (multi-tenant)** — mỗi người dùng có 1 cửa hàng riêng, dữ liệu tách biệt hoàn toàn; chọn vai trò **chủ/nhân viên** khi đăng ký.
+- 👥 **Phân quyền (RBAC)** — chủ (owner) & nhân viên (staff); mời nhân viên qua **link token** (copy gửi Zalo/SMS), nhận qua chuông thông báo.
 - 🎨 **Tuỳ biến thương hiệu** — đổi tên, màu sắc, logo cửa hàng; giao diện đổi theo ngay (live theming).
 - 🧾 **Bán hàng (POS)** — lưới sản phẩm + giỏ hàng → tạo đơn (tự trừ tồn kho), giảm giá, hoá đơn.
 - 📦 **Sản phẩm & kho** — CRUD đầy đủ (ảnh, mô tả, ngưỡng tồn) + cảnh báo tồn thấp.

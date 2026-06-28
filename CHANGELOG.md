@@ -2,24 +2,25 @@
 
 Theo [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/).
 
-## [Unreleased] — phase-11-multitenant (PR #2)
+## [Unreleased] — feat/phase-11-multi-tenant (PR #3 → dev)
 ### Added
-- **Đa cửa hàng (multi-tenant):** bảng `shops` + `shop_members`; mỗi user tự tạo cửa hàng riêng, có thể đứng nhiều shop.
-- **Mời nhân viên qua email** (pending → active khi người đó đăng nhập) + chuông thông báo (lời mời + cảnh báo tồn thấp).
-- **Bộ chuyển cửa hàng** (shop switcher) ở header; **onboarding** tạo cửa hàng cho người dùng mới.
-- **Tuỳ biến thương hiệu**: tên/màu/logo cửa hàng, áp dụng theme trực tiếp (CSS variables).
-- **Đăng nhập magic link** (ngoài Email/mật khẩu + Google).
-- Cài đặt: nút **Xoá toàn bộ dữ liệu** + **Nạp lại dữ liệu mẫu** (owner).
-- Migration `0005_multitenant.sql` (expand pattern) + backfill dữ liệu cũ vào "ThiemCun Demo Shop".
-- 11 test đa cửa hàng (cách ly, mời/nhận, multi-shop, ma trận quyền).
+- **Đa cửa hàng (multi-tenant), mô hình 1-shop:** bảng `shops` + `shop_members`; **mỗi user tối đa 1 cửa hàng active** (`UNIQUE(user_id) WHERE status='active'`).
+- **Onboarding wizard**: chọn vai trò **Chủ shop** (tạo shop) / **Nhân viên** (nhận lời mời).
+- **Mời bằng TOKEN** (chưa có email service): owner copy link `…/join?token=`, hạn 7 ngày, single-use, khớp email; màn `/join` validate + nhận. Chuông thông báo hiện lời mời.
+- **Rời shop / chuyển quyền chủ / xoá shop** (Cài đặt).
+- **Tuỳ biến thương hiệu**: tên/màu/logo, theme áp trực tiếp (CSS vars). **Magic-link** login.
+- Cài đặt owner: **Xoá dữ liệu** + **Nạp lại mẫu**.
+- Migration `0005_multitenant.sql` (expand) + backfill dữ liệu cũ vào "ThiemCun Demo Shop".
+- `ARCHITECTURE.md`; **Gitflow** feat→dev→main + branch protection + `dev.yml`; lint (ruff) trong CI.
+- Test đa cửa hàng (cách ly, 1-shop, token invite/join, leave/transfer/delete, ma trận quyền).
 
 ### Changed
-- Trang đăng nhập thiết kế lại (hero + copy "POS Free cho shop nhỏ", form 3 phương thức).
-- Vai trò (owner/staff) suy ra từ `shop_members` thay vì `profiles.role`. Backend mọi route scope theo `shop_id`.
-- Pin Supabase CLI `2.108.0` trong CI (setup-cli `latest` bị GitHub API rate-limit).
+- Trang đăng nhập thiết kế lại (hero + copy "POS Free cho shop nhỏ", 3 phương thức).
+- Vai trò suy ra từ `shop_members` (không dùng `profiles.role`). Backend mọi route scope theo `shop_id`.
+- Pin Supabase CLI `2.108.0` trong CI; `main.yml` test-only, prod chỉ qua tag `v*`.
 
 ### Removed
-- Cơ chế **allowlist** + ép đổi mật khẩu lần đầu (signup nay mở; ai cũng tạo được cửa hàng).
+- Cơ chế **allowlist** + ép đổi mật khẩu lần đầu. **Bỏ shop-switcher** (vì 1-shop).
 
 ### Deferred
 - `0006_contract.sql` (drop `profiles.role`/`allowed_emails`/`shop_settings`) — làm SAU khi prod xác nhận ổn (an toàn rollback). Xem `PROD_CUTOVER_PHASE11.md`.
