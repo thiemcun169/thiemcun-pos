@@ -35,3 +35,6 @@ playwright-report/
 
 # secrets (never commit)
 .secrets/
+
+# Vercel build artifacts
+.vercel_python_packages/
