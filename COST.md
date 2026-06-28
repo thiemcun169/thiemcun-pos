@@ -78,3 +78,12 @@ Ngày 2026-06-28, user đã thêm 1 thẻ vào Vercel **chỉ để verify accou
 - **Free tier ~ 3-4 email/giờ** (built-in SMTP) → đủ cho dev/demo. Vượt → cấu hình SMTP riêng (Resend/Postmark)
   hoặc Supabase Pro ($25/mo) — **CHƯA bật, cần user duyệt** (không tự upgrade).
 - Fallback: UI luôn hiện "Copy link" để owner gửi tay (Zalo/SMS) nếu email chưa tới.
+
+## Final infrastructure footprint (2026-06-28, post-cleanup)
+**Mục tiêu: $0/tháng. Single-project mỗi dịch vụ.**
+- **Vercel (Hobby, free):** CHỈ còn `thiemcun-prod` → pos.thiemcun.io.vn. Đã xoá 5 grace project (thiemcun-app, thiemcun-staging-s1/s2, thiemcun, thiemcun-pos). Prod deploy chỉ qua `release.yml` (tag v* + cổng duyệt). Bỏ preview/dev auto-deploy Vercel (test dev cục bộ).
+- **Supabase (free):** prod `cnoolkkpkvzerlwkhjxe` + dev `cbtpfnvlcszmlbgxunag` (DB dev cho `dev.yml migrate-dev` + test cục bộ). Email invite dùng built-in SMTP (~4/giờ). Keepwarm cron chống ngủ.
+- **Google OAuth:** 2 client tách biệt — `thiemcun-pos-web` (prod) + `thiemcun-pos-web-dev` (dev). Xem SECURITY.md.
+- **GitHub:** repo public (free Actions + branch protection + environment reviewer gate).
+- **Monitoring:** Sentry wired-but-no-DSN (silent no-op cho tới khi set `SENTRY_DSN`) + UptimeRobot = tự setup (xem MONITORING.md). KHÔNG paid.
+- Domain `thiemcun.io.vn` 30k₫/năm @ PA Vietnam (đã trả). KHÔNG có chi phí định kỳ khác.
