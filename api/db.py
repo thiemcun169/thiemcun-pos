@@ -50,6 +50,32 @@ class Database:
     # --- reports ---
     def report_summary(self) -> dict: ...
 
+    # --- RBAC (profiles / allowlist / audit) — mặc định an toàn cho demo/test ---
+    def list_profiles(self) -> list[dict]:
+        return []
+
+    def get_profile(self, user_id: str) -> Optional[dict]:
+        return None
+
+    def update_profile(self, user_id: str, data: dict) -> Optional[dict]:
+        return None
+
+    def list_allowed_emails(self) -> list[dict]:
+        return []
+
+    def add_allowed_email(self, email: str, role: str, invited_by: Optional[str] = None) -> dict:
+        return {"email": email, "role": role}
+
+    def remove_allowed_email(self, email: str) -> None:
+        return None
+
+    def write_audit(self, actor_id: Optional[str], actor_email: Optional[str],
+                    action: str, target: Optional[str] = None, payload: Optional[dict] = None) -> None:
+        return None
+
+    def list_audit(self, limit: int = 100) -> list[dict]:
+        return []
+
 
 # ---------------------------------------------------------------------------
 # SQLite — dùng cho local dev & test. Dữ liệu mẫu được nạp sẵn.
@@ -395,6 +421,47 @@ class SupabaseDatabase(Database):
             "low_stock": low_stock,
             "top_products": top,
         }
+
+    # --- RBAC: profiles / allowlist / audit (qua service_role, bỏ qua RLS) ---
+    def list_profiles(self) -> list[dict]:
+        return self._get("/profiles", {"select": "*", "order": "created_at"})
+
+    def get_profile(self, user_id: str) -> Optional[dict]:
+        rows = self._get("/profiles", {"id": f"eq.{user_id}", "select": "*"})
+        return rows[0] if rows else None
+
+    def update_profile(self, user_id: str, data: dict) -> Optional[dict]:
+        rows = self._patch("/profiles", data, {"id": f"eq.{user_id}"})
+        return rows[0] if rows else None
+
+    def list_allowed_emails(self) -> list[dict]:
+        return self._get("/allowed_emails", {"select": "*", "order": "created_at.desc"})
+
+    def add_allowed_email(self, email: str, role: str, invited_by: Optional[str] = None) -> dict:
+        # upsert: nếu email đã có thì cập nhật role
+        headers = {**self._headers, "Prefer": "resolution=merge-duplicates,return=representation"}
+        r = self._client.post(f"{self._base}/allowed_emails", headers=headers,
+                              json={"email": email.lower(), "role": role, "invited_by": invited_by})
+        r.raise_for_status()
+        rows = self._json_or_none(r)
+        return rows[0] if rows else {"email": email, "role": role}
+
+    def remove_allowed_email(self, email: str) -> None:
+        r = self._client.delete(f"{self._base}/allowed_emails",
+                               headers=self._headers, params={"email": f"eq.{email.lower()}"})
+        r.raise_for_status()
+
+    def write_audit(self, actor_id, actor_email, action, target=None, payload=None) -> None:
+        try:
+            self._post("/audit_logs", {
+                "actor_id": actor_id, "actor_email": actor_email,
+                "action": action, "target": target, "payload": payload,
+            }, prefer="return=minimal")
+        except Exception:
+            pass  # audit không được làm gãy luồng chính
+
+    def list_audit(self, limit: int = 100) -> list[dict]:
+        return self._get("/audit_logs", {"select": "*", "order": "created_at.desc", "limit": str(limit)})
 
 
 # ---------------------------------------------------------------------------
