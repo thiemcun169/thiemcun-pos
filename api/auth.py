@@ -58,6 +58,26 @@ def _verify_token(token: str) -> dict:
     raise HTTPException(status_code=401, detail="Vé đăng nhập không hợp lệ hoặc đã hết hạn")
 
 
+def send_invite_email(email: str, redirect_url: str) -> bool:
+    """Gửi email mời qua Supabase (magic-link OTP, auto-email). `create_user=true` để hợp
+    cả người MỚI lẫn đã có tài khoản. Sau khi bấm link + xác thực, Supabase redirect tới
+    `redirect_url` (= .../join?token=...) -> app tự nhận lời mời (auto-staff).
+    Trả True nếu gửi OK; KHÔNG làm gãy luồng mời nếu email lỗi (free tier ~4 email/giờ)."""
+    url, key = _supabase_url(), _anon_key()
+    if not (url and key):
+        return False
+    try:
+        r = _client.post(
+            f"{url.rstrip('/')}/auth/v1/otp",
+            params={"redirect_to": redirect_url},
+            headers={"apikey": key, "Content-Type": "application/json"},
+            json={"email": email, "create_user": True},
+        )
+        return r.status_code < 400
+    except httpx.HTTPError:
+        return False
+
+
 def current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
     """Token tuỳ chọn. Có token -> verify -> trả danh tính {id, email, full_name}.
     KHÔNG còn gắn role ở đây — vai trò phụ thuộc vào cửa hàng (xem shop_context)."""
@@ -84,12 +104,14 @@ def _demo_ctx() -> dict:
     }
 
 
-def shop_context(user: Optional[dict] = Depends(current_user)) -> dict:
+def shop_context(user: Optional[dict] = Depends(current_user),
+                 x_shop_id: Optional[str] = Header(default=None)) -> dict:
     """Bối cảnh làm việc: ai + đang ở cửa hàng nào + vai trò gì.
 
-    LUẬT 1-SHOP: mỗi user chỉ thuộc TỐI ĐA 1 cửa hàng active -> không cần chọn/đổi.
+    ĐA THÀNH VIÊN: 1 user có thể thuộc NHIỀU shop (owner shop này + staff shop khác).
+    Frontend gửi header `X-Shop-Id` để chọn shop đang làm việc (shop-switcher).
     - Demo (chưa bật auth): owner của shop demo.
-    - Có auth: lấy đúng membership active duy nhất (nếu có).
+    - Header trỏ shop user KHÔNG thuộc (hoặc cũ) -> lùi về shop đầu tiên của họ (an toàn).
     - Chưa thuộc shop nào -> shop_id=None (frontend đưa vào onboarding wizard).
     """
     if not auth_enabled():
@@ -97,8 +119,12 @@ def shop_context(user: Optional[dict] = Depends(current_user)) -> dict:
     if not user:
         return {"user": None, "user_id": None, "email": None, "shop_id": None, "role": None, "shops": []}
 
-    shops = get_db().list_user_shops(user["id"])  # tối đa 1 theo luật 1-shop
-    chosen = shops[0] if shops else None
+    shops = get_db().list_user_shops(user["id"])
+    chosen = None
+    if x_shop_id:
+        chosen = next((s for s in shops if str(s.get("id")) == str(x_shop_id)), None)
+    if chosen is None and shops:
+        chosen = shops[0]
     return {
         "user": user, "user_id": user["id"], "email": user.get("email"),
         "shop_id": chosen["id"] if chosen else None,

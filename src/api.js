@@ -1,6 +1,7 @@
 // Client gọi backend FastAPI. Mọi request đi qua đây (1 chỗ).
-// Tự gắn JWT (nếu đã đăng nhập Supabase). Luật 1-shop -> không cần gửi shop id.
+// Tự gắn JWT (nếu đã đăng nhập) + X-Shop-Id (shop đang chọn — đa thành viên).
 import { getAccessToken } from "./lib/supabaseClient";
+import { getActiveShopId } from "./lib/shop";
 
 const BASE = "/api";
 
@@ -8,6 +9,8 @@ async function request(path, options = {}) {
   const token = await getAccessToken();
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const shopId = getActiveShopId();
+  if (shopId) headers["X-Shop-Id"] = shopId;
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
@@ -55,7 +58,7 @@ export const api = {
 
   // thành viên / mời (token)
   listMembers: () => request("/members"),
-  inviteMember: (data) => request("/members", { method: "POST", body: JSON.stringify(data) }),
+  inviteMember: (data) => request("/members", { method: "POST", body: JSON.stringify({ ...data, origin: window.location.origin }) }),
   updateMember: (id, data) => request(`/members/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   removeMember: (id) => request(`/members/${id}`, { method: "DELETE" }),
   transferOwnership: (id) => request(`/members/${id}/transfer-ownership`, { method: "POST" }),

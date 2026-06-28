@@ -31,8 +31,9 @@ export default function Members() {
     try {
       const r = await api.inviteMember({ email: invite.email.trim().toLowerCase(), role: invite.role });
       const url = window.location.origin + (r.join_path || `/join?token=${r.invite_token}`);
-      setLastLink({ email: invite.email.trim(), url });
-      push(`Đã tạo lời mời cho ${invite.email.trim()}`); setInvite(null); await reload();
+      setLastLink({ email: invite.email.trim(), url, emailed: !!r.email_sent });
+      push(r.email_sent ? `Đã gửi email mời tới ${invite.email.trim()}` : `Đã tạo lời mời cho ${invite.email.trim()}`);
+      setInvite(null); await reload();
     } catch (e2) { push(e2.message, "error"); } finally { setBusy(false); }
   }
   async function patch(id, body) {
@@ -53,7 +54,11 @@ export default function Members() {
       {lastLink && (
         <div className="card pad invite-link-box">
           <div className="card-title"><i className="ph ph-link-simple" /> Link mời {lastLink.email}</div>
-          <div className="card-sub" style={{ margin: "4px 0 10px" }}>Chưa gửi email tự động — copy link này gửi cho nhân viên (Zalo/SMS…). Hết hạn sau 7 ngày.</div>
+          <div className="card-sub" style={{ margin: "4px 0 10px" }}>
+            {lastLink.emailed
+              ? "✉️ Đã gửi email mời (Supabase). Nếu chưa thấy, copy link này gửi tay (Zalo/SMS). Hết hạn 7 ngày."
+              : "Copy link này gửi cho nhân viên (Zalo/SMS…). Hết hạn sau 7 ngày."}
+          </div>
           <div className="invite-link-row">
             <input className="input" readOnly value={lastLink.url} onFocus={(e) => e.target.select()} />
             <button className="btn btn-primary" onClick={() => copy(lastLink.url)}><i className="ph ph-copy" /> Copy</button>

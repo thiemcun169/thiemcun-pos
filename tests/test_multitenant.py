@@ -69,22 +69,24 @@ def test_create_shop_makes_owner_membership():
     assert any(x["id"] == s["id"] and x["my_role"] == "owner" for x in db.list_user_shops("owner-1"))
 
 
-# --------------------------- DB: LUẬT 1-shop ---------------------------
-def test_user_cannot_own_two_shops():
+# --------------------------- DB: ĐA THÀNH VIÊN (multi-membership) ---------------------------
+def test_user_can_own_multiple_shops():
     db = dbmod.get_db()
-    db.create_shop("A", "alice")
-    with pytest.raises(ValueError):
-        db.create_shop("B", "alice")          # cùng user -> chặn
-    assert len(db.list_user_shops("alice")) == 1
+    a = db.create_shop("A", "alice")
+    b = db.create_shop("B", "alice")          # cùng user -> ĐƯỢC PHÉP (đa thành viên)
+    shops = {s["id"]: s["my_role"] for s in db.list_user_shops("alice")}
+    assert shops.get(a["id"]) == "owner" and shops.get(b["id"]) == "owner"
+    assert len(shops) == 2
 
 
-def test_user_in_a_shop_cannot_accept_invite_to_another():
+def test_owner_of_A_can_also_be_staff_of_B():
     db = dbmod.get_db()
-    db.create_shop("Shop A", "alice")          # alice đã là owner A
+    a = db.create_shop("Shop A", "alice")      # alice owner A
     b = db.create_shop("Shop B", "bob")
     db.invite_member(b["id"], "alice@x.com", "staff", "bob", "tok-x", _future())
-    with pytest.raises(ValueError):
-        db.accept_invite_by_token("tok-x", "alice", "alice@x.com")  # alice đã có shop
+    db.accept_invite_by_token("tok-x", "alice", "alice@x.com")  # vẫn nhận được dù đã có shop
+    shops = {s["id"]: s["my_role"] for s in db.list_user_shops("alice")}
+    assert shops.get(a["id"]) == "owner" and shops.get(b["id"]) == "staff"
 
 
 # --------------------------- DB: mời + nhận bằng token ---------------------------
@@ -191,11 +193,13 @@ def test_owner_can_access_everything():
     assert client.get("/api/audit").status_code == 200
 
 
-def test_api_create_shop_blocked_when_already_in_shop():
+def test_api_create_second_shop_allowed():
     db = dbmod.get_db()
     s = db.create_shop("Đã có", "ownerX")
     app.dependency_overrides[shop_context] = lambda: _ctx(s["id"], "owner", "ownerX")
-    assert client.post("/api/shops", json={"name": "Shop 2"}).status_code == 409
+    # đa thành viên: tạo shop thứ 2 -> OK
+    assert client.post("/api/shops", json={"name": "Shop 2"}).status_code == 201
+    assert len(db.list_user_shops("ownerX")) == 2
 
 
 def test_api_invite_returns_token_then_join():

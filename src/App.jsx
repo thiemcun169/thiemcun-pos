@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { authEnabled, supabase, signOut as supaSignOut } from "./lib/supabaseClient";
-import { applyTheme } from "./lib/shop";
+import { getActiveShopId, setActiveShopId, applyTheme } from "./lib/shop";
 import { readCache, writeCache } from "./lib/cache";
 import LoginPage from "./pages/LoginPage.jsx";
 import Onboarding from "./pages/Onboarding.jsx";
@@ -13,6 +13,7 @@ import Reports from "./pages/Reports.jsx";
 import Members from "./pages/Members.jsx";
 import Customers from "./pages/Customers.jsx";
 import Settings from "./pages/Settings.jsx";
+import ShopSwitcher from "./components/ShopSwitcher.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
 
 const ALL_TABS = [
@@ -41,8 +42,10 @@ function clearToken() {
 export default function App() {
   const [booting, setBooting] = useState(authEnabled);
   const [session, setSession] = useState(null);
-  const [me, setMe] = useState(null);          // {user, email, shop_id, role, shops}
+  const [me, setMe] = useState(null);          // {user, email, shop_id, role, shops:[...]}
+  const [activeId, setActiveId] = useState(getActiveShopId());
   const [joinToken, setJoinToken] = useState(readToken());
+  const [creatingShop, setCreatingShop] = useState(false);
   const [tab, setTab] = useState("sales");
   const [collapsed, setCollapsed] = useState(false);
 
@@ -53,9 +56,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const shop = me?.shops?.[0] || null;
-  const shopId = me?.shop_id || null;
-  const role = me?.role || "owner";
+  const shops = me?.shops || [];
+  const activeShop = shops.find((s) => String(s.id) === String(activeId)) || shops[0] || null;
+  const shopId = activeShop?.id || null;
+  const role = activeShop?.my_role || me?.role || "owner";
 
   // 1) Phiên đăng nhập
   useEffect(() => {
@@ -63,16 +67,21 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => { setSession(data?.session ?? null); setBooting(false); });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s ?? null);
-      if (!s) setMe(null);
+      if (!s) { setMe(null); setActiveShopId(null); setActiveId(null); }
     });
     return () => sub?.subscription?.unsubscribe();
   }, []);
 
-  // 2) Nạp danh tính + cửa hàng
+  // 2) Nạp danh tính + danh sách shop; chọn shop active (ưu tiên lựa chọn đã lưu).
   const loadMe = useCallback(async () => {
     const m = await api.me();
     setMe(m);
-    applyTheme(m.shops?.[0]);
+    const ids = (m.shops || []).map((s) => String(s.id));
+    const stored = getActiveShopId();
+    const pick = (stored && ids.includes(String(stored))) ? stored : (m.shop_id || m.shops?.[0]?.id || null);
+    setActiveShopId(pick);
+    setActiveId(pick);
+    applyTheme((m.shops || []).find((s) => String(s.id) === String(pick)));
     return m;
   }, []);
 
@@ -81,7 +90,7 @@ export default function App() {
     loadMe().catch((e) => setError(e.message));
   }, [session, loadMe]);
 
-  // 3) Dữ liệu của cửa hàng (stale-while-revalidate)
+  // 3) Dữ liệu của shop đang chọn (stale-while-revalidate theo từng shop).
   const reload = useCallback(async (silent = false) => {
     if (authEnabled && !shopId) return;
     if (!silent) setLoading(true);
@@ -106,19 +115,36 @@ export default function App() {
     } else { reload(); }
   }, [me, shopId, joinToken, reload]);
 
-  async function afterJoinOrCreate() { clearToken(); setJoinToken(null); await loadMe(); setTab("sales"); }
+  // Đổi shop (shop-switcher)
+  function switchShop(id) {
+    if (!id || String(id) === String(activeId)) return;
+    setActiveShopId(id); setActiveId(id);
+    applyTheme(shops.find((s) => String(s.id) === String(id)));
+    setTab("sales");
+  }
+  // Sau khi tạo shop mới hoặc nhận lời mời -> nạp lại + chuyển tới shop đó
+  async function afterJoinOrCreate(targetShopId) {
+    clearToken(); setJoinToken(null); setCreatingShop(false);
+    const m = await loadMe();
+    const ids = (m.shops || []).map((s) => String(s.id));
+    if (targetShopId && ids.includes(String(targetShopId))) {
+      setActiveShopId(targetShopId); setActiveId(targetShopId);
+      applyTheme((m.shops || []).find((s) => String(s.id) === String(targetShopId)));
+    }
+    setTab("sales");
+  }
   async function onShopUpdated() { await loadMe(); }
 
   // --- Màn chặn ---
   if (booting) return <div className="full-center">Đang tải…</div>;
   if (authEnabled && !session) return <LoginPage inviteToken={joinToken} />;
   if (authEnabled && session && !me) return <div className="full-center">Đang tải hồ sơ…</div>;
-  // Link mời (đã đăng nhập) -> xử lý trước
-  if (authEnabled && joinToken) return <JoinShop token={joinToken} onJoined={afterJoinOrCreate} onSkip={() => { clearToken(); setJoinToken(null); }} />;
-  // Chưa có cửa hàng -> onboarding wizard
-  if (authEnabled && !shopId)
+  if (authEnabled && joinToken)
+    return <JoinShop token={joinToken} onJoined={afterJoinOrCreate} onSkip={() => { clearToken(); setJoinToken(null); }} />;
+  // Chưa thuộc shop nào -> onboarding wizard (đa thành viên: chỉ khi 0 shop)
+  if (authEnabled && shops.length === 0)
     return <Onboarding defaultName={me?.user?.full_name ? `Shop của ${me.user.full_name}` : ""}
-                       onCreated={afterJoinOrCreate} onJoined={afterJoinOrCreate} />;
+                       onCreated={(s) => afterJoinOrCreate(s?.id)} onJoined={afterJoinOrCreate} />;
 
   const tabs = ALL_TABS.filter((t) => t.roles.includes(role));
   const active = tabs.find((t) => t.id === tab) ? tab : "sales";
@@ -131,9 +157,9 @@ export default function App() {
       <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
         <div className="sidebar-head">
           <div className="logo-badge">
-            {shop?.logo_url ? <img src={shop.logo_url} alt="" className="logo-img" /> : <i className="ph-fill ph-storefront" />}
+            {activeShop?.logo_url ? <img src={activeShop.logo_url} alt="" className="logo-img" /> : <i className="ph-fill ph-storefront" />}
           </div>
-          {!collapsed && <span className="logo-text">{shop?.name || "ThiemCun POS"}</span>}
+          {!collapsed && <span className="logo-text">{activeShop?.name || "ThiemCun POS"}</span>}
         </div>
         <nav className="nav">
           {tabs.map((t) => (
@@ -161,6 +187,9 @@ export default function App() {
           <button className="topbar-toggle" onClick={() => setCollapsed((c) => !c)} title="Thu gọn">
             <i className="ph ph-sidebar-simple" />
           </button>
+          {shops.length > 0 && (
+            <ShopSwitcher shops={shops} activeShopId={activeId} onSwitch={switchShop} onCreateShop={() => setCreatingShop(true)} />
+          )}
           <div className="topbar-titles">
             <h1>{meta?.label}</h1>
             <div className="sub">{meta?.sub}</div>
@@ -182,11 +211,20 @@ export default function App() {
               {active === "customers" && <Customers />}
               {active === "reports" && <Reports report={report} orders={orders} customers={customers} products={products} />}
               {active === "members" && <Members />}
-              {active === "settings" && <Settings role={role} user={displayUser} shop={shop} onShopUpdated={onShopUpdated} onLeftShop={afterJoinOrCreate} />}
+              {active === "settings" && <Settings role={role} user={displayUser} shop={activeShop} onShopUpdated={onShopUpdated} onLeftShop={() => afterJoinOrCreate()} />}
             </>
           )}
         </main>
       </div>
+
+      {creatingShop && (
+        <div className="modal-overlay">
+          <div className="scrim" onClick={() => setCreatingShop(false)} />
+          <div className="modal sm" style={{ padding: 0, background: "transparent", boxShadow: "none" }}>
+            <Onboarding onCreated={(s) => afterJoinOrCreate(s?.id)} onJoined={afterJoinOrCreate} onCancel={() => setCreatingShop(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

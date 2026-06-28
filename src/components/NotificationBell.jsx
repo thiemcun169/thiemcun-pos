@@ -25,7 +25,7 @@ export default function NotificationBell({ onAcceptedInvite }) {
   }, []);
 
   async function accept(token) {
-    try { await api.joinByToken(token); await reload(); onAcceptedInvite?.(); }
+    try { const r = await api.joinByToken(token); await reload(); onAcceptedInvite?.(r?.shop_id); }
     catch (e) { alert(e.message); }
   }
 
