@@ -1,5 +1,6 @@
-name: PR — lint + test + build + preview
+name: PR — lint + test + build
 # Chạy cho PR vào dev HOẶC main (Gitflow: feat/* -> dev -> main).
+# (Bỏ Vercel preview-deploy: hạ tầng gọn còn 1 project prod; dev test cục bộ.)
 on:
   pull_request:
     branches: [dev, main]
@@ -31,26 +32,3 @@ jobs:
         with: { node-version: "20", cache: "npm" }
       - run: npm ci
       - run: npm run build
-
-  preview:
-    needs: [lint, test, build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - name: Install uv   # Vercel build Python (FastAPI) cần uv khi build cục bộ trên runner
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.uv-bin" sh
-          echo "$HOME/.uv-bin" >> "$GITHUB_PATH"
-      - name: Vercel preview deploy
-        run: |
-          npm i -g vercel
-          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-          vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
