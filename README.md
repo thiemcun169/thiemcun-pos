@@ -3,17 +3,28 @@
 Sản phẩm mẫu **production-ready** của khoá **"Vibe Coding với Claude Code"**, đi trọn pipeline
 **Idea → Research → PRD → Prototype → Build → Test → Deploy → Operate**.
 
-> Live: `https://thiemcun.vercel.app` · Hướng dẫn dựng lại từ đầu: **[../HANDSON.md](../HANDSON.md)**
+> **Live (prod):** https://thiemcun-prod.vercel.app · **Staging:** https://thiemcun-staging-s1.vercel.app
+> Hướng dẫn dựng lại từ đầu: **[../HANDSON.md](../HANDSON.md)**
 
 ## Tính năng
-- **Bán hàng**: lưới sản phẩm + tìm kiếm + giỏ hàng → tạo đơn (tự trừ tồn kho).
-- **Sản phẩm**: danh sách + thêm mới + chỉnh tồn.
-- **Đơn hàng**: lịch sử đơn + chi tiết.
-- **Báo cáo**: doanh thu, số đơn, top bán chạy, cảnh báo sắp hết hàng.
-- **Đăng nhập Google** (Supabase Auth) — bật/tắt bằng env; chưa cấu hình = chế độ demo.
+- **Bán hàng (POS)**: lưới sản phẩm + tìm kiếm + giỏ hàng → tạo đơn (tự trừ tồn kho).
+- **Sản phẩm**: thêm/sửa/xoá (ảnh, mô tả, ngưỡng tồn) + banner cảnh báo tồn thấp.
+- **Khách hàng**: DB khách + lượt mua + tổng chi tiêu + lịch sử mua.
+- **Đơn hàng**: lịch sử đơn + chi tiết. **Báo cáo**: doanh thu, top bán chạy, cảnh báo hết hàng.
+- **Cài đặt**: hồ sơ + đổi mật khẩu + MFA (TOTP) + thông tin cửa hàng.
+- **RBAC** owner/staff + allowlist + ép đổi MK lần đầu + audit log; **Đăng nhập Google** (Supabase Auth).
 
 ## Stack
-React (Vite) · FastAPI (serverless trên Vercel) · Supabase (Postgres + Auth) · GitHub Actions (CI) · Sentry + Vercel Analytics.
+React (Vite) · FastAPI (serverless trên Vercel) · Supabase (Postgres + Auth, ES256 JWT) ·
+**CI/CD GitHub Actions** (PR preview · push→staging · prod manual-gated) · Sentry + Vercel Analytics.
+
+## CI/CD (`.github/workflows/` — xem [.github/README.md](.github/README.md))
+| Trigger | Workflow |
+|---|---|
+| Mở PR | build + pytest → Vercel **preview** |
+| Push `main` | test → migrate **staging** Supabase → deploy **staging** Vercel |
+| Prod | `release.yml` — `workflow_dispatch` + **gõ `DEPLOY-PROD`** (cổng thủ công) |
+| Thủ công | `migrations.yml` áp migration (staging/prod) · `keepwarm.yml` cron chống ngủ |
 
 ## Kiến trúc
 ```
@@ -25,8 +36,8 @@ api/            FastAPI backend (Vercel function)
   index.py        routes /api/*
   db.py           LỚP KẾT NỐI DB (sqlite | supabase) — đổi DB chỉ sửa ở đây
   pricing.py      logic nghiệp vụ thuần (unit-test dễ)
-  auth.py         xác thực JWT Supabase (bật/tắt theo env)
-supabase/schema.sql   tạo bảng + RLS + seed
+  auth.py         xác thực JWT Supabase (verify qua /auth/v1/user — hợp ES256)
+supabase/migrations/  000N_*.sql (additive + idempotent, áp qua CI theo môi trường)
 tests/          pytest (unit + integration) + e2e (Playwright)
 vercel.json     gộp Vite (/) + FastAPI (/api/*) trong 1 project
 ```
