@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import os
 import sys
+import uuid
+from datetime import datetime, timedelta, timezone
 
 # Đảm bảo import được module cùng thư mục kể cả khi Vercel đổi cwd. PHẢI đặt TRƯỚC import sibling.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +30,8 @@ from auth import (auth_enabled, require_owner, require_shop,
                   require_user, user_id_of)
 from db import get_db
 from pricing import StockError
+
+INVITE_TTL_DAYS = 7  # lời mời hết hạn sau 7 ngày
 
 # --- Sentry (tuỳ chọn): chỉ bật khi có SENTRY_DSN ---
 if os.environ.get("SENTRY_DSN"):
@@ -118,8 +122,8 @@ class MemberUpdate(BaseModel):
     status: Optional[str] = Field(default=None, pattern="^(active|disabled)$")
 
 
-class AcceptInvite(BaseModel):
-    shop_id: str = Field(min_length=1)
+class JoinByToken(BaseModel):
+    token: str = Field(min_length=1)
 
 
 # --------------------------- Health / meta ---------------------------
@@ -148,7 +152,13 @@ def list_shops(ctx: dict = Depends(require_user)):
 
 @app.post("/api/shops", status_code=201)
 def create_shop(body: ShopCreate, ctx: dict = Depends(require_user)):
-    shop = get_db().create_shop(body.name.strip(), user_id_of(ctx))
+    # Luật 1-shop: user đã có cửa hàng -> chặn (db cũng raise, đây trả lỗi rõ ràng).
+    if ctx.get("shop_id"):
+        raise HTTPException(status_code=409, detail="Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tạo mới.")
+    try:
+        shop = get_db().create_shop(body.name.strip(), user_id_of(ctx))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     get_db().write_audit(shop["id"], user_id_of(ctx), ctx.get("email"), "shop_create", target=shop["id"], payload={"name": shop["name"]})
     return shop
 
@@ -272,9 +282,12 @@ def list_members(ctx: dict = Depends(require_owner)):
 
 @app.post("/api/members", status_code=201)
 def invite_member(body: MemberInvite, ctx: dict = Depends(require_owner)):
-    row = get_db().invite_member(ctx["shop_id"], str(body.email), body.role, invited_by=user_id_of(ctx))
+    # Chưa có dịch vụ email -> sinh token + hạn 7 ngày, trả link để owner tự gửi.
+    token = uuid.uuid4().hex
+    expires = (datetime.now(timezone.utc) + timedelta(days=INVITE_TTL_DAYS)).isoformat()
+    row = get_db().invite_member(ctx["shop_id"], str(body.email), body.role, user_id_of(ctx), token, expires)
     get_db().write_audit(ctx["shop_id"], user_id_of(ctx), ctx.get("email"), "invite_member", target=str(body.email), payload={"role": body.role})
-    return row
+    return {**(row or {}), "invite_token": token, "join_path": f"/join?token={token}", "expires_at": expires}
 
 
 @app.patch("/api/members/{member_id}")
@@ -296,23 +309,70 @@ def remove_member(member_id: str, ctx: dict = Depends(require_owner)):
     return {"ok": True}
 
 
-# --------------------------- Invites (cho người được mời) ---------------------------
+@app.post("/api/members/{member_id}/transfer-ownership")
+def transfer_ownership(member_id: str, ctx: dict = Depends(require_owner)):
+    """Chuyển quyền chủ cho 1 thành viên khác; người gọi trở thành staff."""
+    members = {m["id"]: m for m in get_db().list_members(ctx["shop_id"])}
+    target = members.get(member_id)
+    if not target or not target.get("user_id") or target.get("status") != "active":
+        raise HTTPException(status_code=404, detail="Không tìm thấy nhân viên hợp lệ để chuyển quyền")
+    get_db().transfer_ownership(ctx["shop_id"], user_id_of(ctx), member_id)
+    get_db().write_audit(ctx["shop_id"], user_id_of(ctx), ctx.get("email"), "transfer_ownership", target=member_id)
+    return {"ok": True}
+
+
+# --------------------------- Rời / xoá cửa hàng ---------------------------
+@app.post("/api/shop/leave")
+def leave_shop(ctx: dict = Depends(require_shop)):
+    uid = user_id_of(ctx)
+    if ctx.get("role") == "owner" and get_db().count_active_members(ctx["shop_id"]) > 1:
+        raise HTTPException(status_code=409,
+                            detail="Bạn là chủ cửa hàng. Hãy chuyển quyền cho nhân viên khác hoặc xoá cửa hàng trước khi rời.")
+    get_db().leave_shop(ctx["shop_id"], uid)
+    get_db().write_audit(ctx["shop_id"], uid, ctx.get("email"), "leave_shop")
+    return {"ok": True}
+
+
+@app.delete("/api/shop")
+def delete_shop(ctx: dict = Depends(require_owner)):
+    sid = ctx["shop_id"]
+    get_db().write_audit(sid, user_id_of(ctx), ctx.get("email"), "delete_shop", target=sid)
+    get_db().delete_shop(sid)
+    return {"ok": True}
+
+
+# --------------------------- Invites / join (token-based) ---------------------------
 @app.get("/api/invites")
 def my_invites(ctx: dict = Depends(require_user)):
+    """Lời mời đang chờ gửi tới email của tôi (cho màn onboarding staff)."""
     email = ctx.get("email")
     return get_db().list_invites_for_email(email) if email else []
 
 
-@app.post("/api/invites/accept")
-def accept_invite(body: AcceptInvite, ctx: dict = Depends(require_user)):
+@app.get("/api/invite/{token}")
+def validate_invite(token: str):
+    """Công khai (không cần login) — để màn /join hiển thị 'bạn được mời vào shop X'."""
+    inv = get_db().get_invite_by_token(token)
+    if not inv or inv.get("user_id") or inv.get("status") != "pending_invite":
+        return {"valid": False, "reason": "Lời mời không hợp lệ hoặc đã được sử dụng."}
+    from db import _is_expired
+    if _is_expired(inv.get("invite_expires_at")):
+        return {"valid": False, "reason": "Lời mời đã hết hạn."}
+    return {"valid": True, "shop_name": inv.get("shop_name"),
+            "invited_email": inv.get("invited_email"), "role": inv.get("role")}
+
+
+@app.post("/api/join")
+def join_by_token(body: JoinByToken, ctx: dict = Depends(require_user)):
     uid, email = user_id_of(ctx), ctx.get("email")
     if not (uid and email):
         raise HTTPException(status_code=400, detail="Cần đăng nhập để nhận lời mời")
-    m = get_db().accept_invite(body.shop_id, uid, email)
-    if not m:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lời mời")
-    get_db().write_audit(body.shop_id, uid, email, "accept_invite", target=body.shop_id)
-    return {"ok": True, "shop_id": body.shop_id}
+    try:
+        m = get_db().accept_invite_by_token(body.token, uid, email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    get_db().write_audit(m["shop_id"], uid, email, "accept_invite", target=m["shop_id"])
+    return {"ok": True, "shop_id": m["shop_id"], "shop_name": m.get("shop_name")}
 
 
 # --------------------------- Notifications ---------------------------
@@ -320,10 +380,9 @@ def accept_invite(body: AcceptInvite, ctx: dict = Depends(require_user)):
 def notifications(ctx: dict = Depends(require_user)):
     shop_id = ctx.get("shop_id")
     if not shop_id:
-        # chưa có shop -> chỉ trả lời mời (nếu có)
         email = ctx.get("email")
         invs = get_db().list_invites_for_email(email) if email else []
-        return [{"type": "invite", "shop_id": i["shop_id"],
+        return [{"type": "invite", "token": i.get("invite_token"),
                  "title": f"Lời mời vào {i.get('shop_name') or 'cửa hàng'}",
                  "body": f"Bạn được mời làm {i.get('role')}.", "role": i.get("role")} for i in invs]
     return get_db().notifications(shop_id, ctx.get("email"))

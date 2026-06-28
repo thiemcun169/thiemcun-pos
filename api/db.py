@@ -26,6 +26,7 @@ import os
 import sqlite3
 import threading
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -42,6 +43,21 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
+def _parse_iso(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _is_expired(expires_at: Optional[str]) -> bool:
+    """Lời mời hết hạn? (so với thời điểm hiện tại UTC)."""
+    dt = _parse_iso(expires_at)
+    return bool(dt and dt < datetime.now(timezone.utc))
+
+
 # ---------------------------------------------------------------------------
 # Giao diện chung (interface) — phần còn lại của app chỉ biết tới các hàm này.
 # Hầu hết hàm dữ liệu nhận shop_id (cửa hàng đang hoạt động).
@@ -55,20 +71,31 @@ class Database:
     def create_shop(self, name: str, user_id: Optional[str]) -> dict: ...
     def update_shop(self, shop_id: str, data: dict) -> Optional[dict]: ...
 
-    # --- shop members / invites ---
+    # --- shop members / invites (token-based) ---
     def get_membership(self, shop_id: str, user_id: Optional[str]) -> Optional[dict]:
+        return None
+
+    def get_active_membership(self, user_id: Optional[str]) -> Optional[dict]:
+        """Membership ACTIVE duy nhất của user (luật 1-shop). None nếu là 'orphan'."""
         return None
 
     def list_members(self, shop_id: str) -> list[dict]:
         return []
 
-    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str] = None) -> dict: ...
+    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str], token: str, expires_at: str) -> dict: ...
     def update_member(self, shop_id: str, member_id: str, data: dict) -> Optional[dict]: ...
     def remove_member(self, shop_id: str, member_id: str) -> None: ...
     def list_invites_for_email(self, email: str) -> list[dict]:
         return []
-    def accept_invite(self, shop_id: str, user_id: str, email: str) -> Optional[dict]:
-        return None
+    def get_invite_by_token(self, token: str) -> Optional[dict]: ...
+    def accept_invite_by_token(self, token: str, user_id: str, email: str) -> dict:
+        """Nhận lời mời. Raise ValueError nếu token sai/hết hạn/email lệch/đã có shop."""
+        ...
+    def leave_shop(self, shop_id: str, user_id: str) -> None: ...
+    def transfer_ownership(self, shop_id: str, from_user_id: str, to_member_id: str) -> None: ...
+    def delete_shop(self, shop_id: str) -> None: ...
+    def count_active_members(self, shop_id: str) -> int:
+        return 0
 
     # --- products ---
     def list_products(self, shop_id: str) -> list[dict]: ...
@@ -133,6 +160,8 @@ class SqliteDatabase(Database):
                     color_secondary TEXT NOT NULL DEFAULT '#004c3f',
                     logo_url TEXT, address TEXT, hotline TEXT,
                     created_by TEXT,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    transferred_owner_at TEXT,
                     settings TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -142,12 +171,17 @@ class SqliteDatabase(Database):
                     shop_id TEXT NOT NULL,
                     user_id TEXT,
                     role TEXT NOT NULL DEFAULT 'staff',
-                    status TEXT NOT NULL DEFAULT 'pending',
+                    status TEXT NOT NULL DEFAULT 'pending_invite',
                     invited_email TEXT,
                     invited_by TEXT,
+                    invite_token TEXT,
+                    invite_expires_at TEXT,
                     joined_at TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+                -- LUẬT 1-shop: mỗi user chỉ 1 membership ACTIVE.
+                CREATE UNIQUE INDEX IF NOT EXISTS one_active_membership_per_user
+                    ON shop_members(user_id) WHERE status='active' AND user_id IS NOT NULL;
                 CREATE TABLE IF NOT EXISTS products (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     shop_id TEXT,
@@ -262,8 +296,11 @@ class SqliteDatabase(Database):
         return self._shop_row(row) if row else None
 
     def create_shop(self, name: str, user_id: Optional[str]) -> dict:
-        sid = _new_id()
         uid = user_id or DEMO_USER_ID
+        # LUẬT 1-shop: nếu user đã thuộc 1 shop active -> chặn.
+        if self.get_active_membership(uid):
+            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tạo mới.")
+        sid = _new_id()
         with self._lock:
             self._conn.execute(
                 "INSERT INTO shops (id, name, created_by) VALUES (?,?,?)", (sid, name, uid)
@@ -293,7 +330,7 @@ class SqliteDatabase(Database):
             self._conn.commit()
         return self.get_shop(shop_id)
 
-    # ---- members / invites ----
+    # ---- members / invites (token-based, luật 1-shop) ----
     def get_membership(self, shop_id: str, user_id: Optional[str]) -> Optional[dict]:
         if not user_id:
             return None
@@ -304,30 +341,47 @@ class SqliteDatabase(Database):
             ).fetchone()
         return dict(row) if row else None
 
+    def get_active_membership(self, user_id: Optional[str]) -> Optional[dict]:
+        if not user_id:
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM shop_members WHERE user_id=? AND status='active' LIMIT 1", (user_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
     def list_members(self, shop_id: str) -> list[dict]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM shop_members WHERE shop_id=? ORDER BY created_at", (shop_id,)
+                "SELECT * FROM shop_members WHERE shop_id=? AND status != 'left' ORDER BY created_at", (shop_id,)
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str] = None) -> dict:
+    def count_active_members(self, shop_id: str) -> int:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) AS n FROM shop_members WHERE shop_id=? AND status='active'", (shop_id,)
+            ).fetchone()["n"]
+
+    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str], token: str, expires_at: str) -> dict:
         email = email.lower()
         with self._lock:
             existing = self._conn.execute(
                 "SELECT * FROM shop_members WHERE shop_id=? AND lower(invited_email)=?", (shop_id, email)
             ).fetchone()
             if existing:
-                self._conn.execute("UPDATE shop_members SET role=? WHERE id=?", (role, existing["id"]))
-                self._conn.commit()
-                row = self._conn.execute("SELECT * FROM shop_members WHERE id=?", (existing["id"],)).fetchone()
-                return dict(row)
-            mid = _new_id()
-            self._conn.execute(
-                "INSERT INTO shop_members (id, shop_id, role, status, invited_email, invited_by)"
-                " VALUES (?,?,?,?,?,?)",
-                (mid, shop_id, role, "pending", email, invited_by),
-            )
+                self._conn.execute(
+                    "UPDATE shop_members SET role=?, status='pending_invite', invite_token=?, invite_expires_at=? WHERE id=?",
+                    (role, token, expires_at, existing["id"]),
+                )
+                mid = existing["id"]
+            else:
+                mid = _new_id()
+                self._conn.execute(
+                    "INSERT INTO shop_members (id, shop_id, role, status, invited_email, invited_by, invite_token, invite_expires_at)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (mid, shop_id, role, "pending_invite", email, invited_by, token, expires_at),
+                )
             self._conn.commit()
             row = self._conn.execute("SELECT * FROM shop_members WHERE id=?", (mid,)).fetchone()
         return dict(row)
@@ -357,20 +411,68 @@ class SqliteDatabase(Database):
         with self._lock:
             rows = self._conn.execute(
                 """SELECT m.*, s.name AS shop_name FROM shop_members m JOIN shops s ON s.id=m.shop_id
-                   WHERE m.status='pending' AND m.user_id IS NULL AND lower(m.invited_email)=?""",
+                   WHERE m.status='pending_invite' AND m.user_id IS NULL AND lower(m.invited_email)=?""",
                 (email.lower(),),
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def accept_invite(self, shop_id: str, user_id: str, email: str) -> Optional[dict]:
+    def get_invite_by_token(self, token: str) -> Optional[dict]:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT m.*, s.name AS shop_name FROM shop_members m JOIN shops s ON s.id=m.shop_id
+                   WHERE m.invite_token=?""", (token,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def accept_invite_by_token(self, token: str, user_id: str, email: str) -> dict:
+        inv = self.get_invite_by_token(token)
+        if not inv or inv.get("user_id") or inv.get("status") != "pending_invite":
+            raise ValueError("Lời mời không hợp lệ hoặc đã được sử dụng.")
+        if _is_expired(inv.get("invite_expires_at")):
+            raise ValueError("Lời mời đã hết hạn.")
+        if (inv.get("invited_email") or "").lower() != (email or "").lower():
+            raise ValueError("Email đăng nhập không khớp với email được mời.")
+        if self.get_active_membership(user_id):
+            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tham gia shop khác.")
         with self._lock:
             self._conn.execute(
-                """UPDATE shop_members SET user_id=?, status='active', joined_at=CURRENT_TIMESTAMP
-                   WHERE shop_id=? AND user_id IS NULL AND status='pending' AND lower(invited_email)=?""",
-                (user_id, shop_id, email.lower()),
+                "UPDATE shop_members SET user_id=?, status='active', joined_at=CURRENT_TIMESTAMP,"
+                " invite_token=NULL WHERE id=?",
+                (user_id, inv["id"]),
             )
             self._conn.commit()
-        return self.get_membership(shop_id, user_id)
+        m = self.get_membership(inv["shop_id"], user_id)
+        return {**(m or {}), "shop_id": inv["shop_id"], "shop_name": inv.get("shop_name")}
+
+    def leave_shop(self, shop_id: str, user_id: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE shop_members SET status='left' WHERE shop_id=? AND user_id=? AND status='active'",
+                (shop_id, user_id),
+            )
+            self._conn.commit()
+
+    def transfer_ownership(self, shop_id: str, from_user_id: str, to_member_id: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE shop_members SET role='owner' WHERE id=? AND shop_id=? AND status='active'",
+                (to_member_id, shop_id),
+            )
+            self._conn.execute(
+                "UPDATE shop_members SET role='staff' WHERE shop_id=? AND user_id=? AND status='active'",
+                (shop_id, from_user_id),
+            )
+            self._conn.execute(
+                "UPDATE shops SET transferred_owner_at=CURRENT_TIMESTAMP WHERE id=?", (shop_id,)
+            )
+            self._conn.commit()
+
+    def delete_shop(self, shop_id: str) -> None:
+        self.clear_shop_data(shop_id)  # tự acquire lock
+        with self._lock:
+            self._conn.execute("DELETE FROM shop_members WHERE shop_id=?", (shop_id,))
+            self._conn.execute("DELETE FROM shops WHERE id=?", (shop_id,))
+            self._conn.commit()
 
     # --- products (luôn lọc theo shop_id) ---
     _PROD_COLS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
@@ -560,7 +662,7 @@ class SqliteDatabase(Database):
         if email:
             for inv in self.list_invites_for_email(email):
                 out.append({
-                    "type": "invite", "shop_id": inv["shop_id"],
+                    "type": "invite", "token": inv.get("invite_token"),
                     "title": f"Lời mời vào {inv.get('shop_name') or 'cửa hàng'}",
                     "body": f"Bạn được mời làm {inv.get('role')}.", "role": inv.get("role"),
                 })
@@ -649,6 +751,8 @@ class SupabaseDatabase(Database):
         return rows[0] if rows else None
 
     def create_shop(self, name: str, user_id: Optional[str]) -> dict:
+        if self.get_active_membership(user_id):
+            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tạo mới.")
         rows = self._post("/shops", {"name": name, "created_by": user_id})
         shop = rows[0]
         self._post("/shop_members", {
@@ -666,7 +770,7 @@ class SupabaseDatabase(Database):
         rows = self._patch("/shops", clean, {"id": f"eq.{shop_id}"})
         return rows[0] if rows else self.get_shop(shop_id)
 
-    # ---- members / invites ----
+    # ---- members / invites (token-based, luật 1-shop) ----
     def get_membership(self, shop_id: str, user_id: Optional[str]) -> Optional[dict]:
         if not user_id:
             return None
@@ -675,9 +779,17 @@ class SupabaseDatabase(Database):
         })
         return rows[0] if rows else None
 
+    def get_active_membership(self, user_id: Optional[str]) -> Optional[dict]:
+        if not user_id:
+            return None
+        rows = self._get("/shop_members", {
+            "user_id": f"eq.{user_id}", "status": "eq.active", "select": "*", "limit": "1",
+        })
+        return rows[0] if rows else None
+
     def list_members(self, shop_id: str) -> list[dict]:
-        members = self._get("/shop_members", {"shop_id": f"eq.{shop_id}", "select": "*", "order": "created_at"}) or []
-        # Bổ sung email/tên từ profiles cho các thành viên đã có tài khoản.
+        members = self._get("/shop_members", {
+            "shop_id": f"eq.{shop_id}", "status": "neq.left", "select": "*", "order": "created_at"}) or []
         uids = [m["user_id"] for m in members if m.get("user_id")]
         prof_by_id: dict[str, dict] = {}
         if uids:
@@ -690,24 +802,20 @@ class SupabaseDatabase(Database):
             m["full_name"] = (p or {}).get("full_name")
         return members
 
-    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str] = None) -> dict:
+    def count_active_members(self, shop_id: str) -> int:
+        rows = self._get("/shop_members", {"shop_id": f"eq.{shop_id}", "status": "eq.active", "select": "id"}) or []
+        return len(rows)
+
+    def invite_member(self, shop_id: str, email: str, role: str, invited_by: Optional[str], token: str, expires_at: str) -> dict:
         email = email.lower()
-        headers = {**self._headers, "Prefer": "resolution=merge-duplicates,return=representation"}
-        r = self._client.post(
-            f"{self._base}/shop_members", headers=headers,
-            params={"on_conflict": "shop_id,invited_email"},
-            json={"shop_id": shop_id, "invited_email": email, "role": role,
-                  "status": "pending", "invited_by": invited_by},
-        )
-        # merge-duplicates cần unique trên (shop_id, invited_email); nếu xung đột vẫn trả ok.
-        if r.status_code >= 400:
-            # đã có lời mời -> cập nhật role
-            self._patch("/shop_members", {"role": role},
-                        {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email}"})
-            rows = self._get("/shop_members", {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email}", "select": "*"})
-            return rows[0] if rows else {"shop_id": shop_id, "invited_email": email, "role": role}
-        rows = self._json_or_none(r)
-        return rows[0] if rows else {"shop_id": shop_id, "invited_email": email, "role": role}
+        existing = self._get("/shop_members", {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email}", "select": "id"})
+        payload = {"role": role, "status": "pending_invite", "invite_token": token, "invite_expires_at": expires_at}
+        if existing:
+            rows = self._patch("/shop_members", payload, {"id": f"eq.{existing[0]['id']}"})
+            return rows[0] if rows else {"shop_id": shop_id, "invited_email": email, "role": role, "invite_token": token}
+        rows = self._post("/shop_members", {
+            "shop_id": shop_id, "invited_email": email, "invited_by": invited_by, **payload})
+        return rows[0] if rows else {"shop_id": shop_id, "invited_email": email, "role": role, "invite_token": token}
 
     def update_member(self, shop_id: str, member_id: str, data: dict) -> Optional[dict]:
         clean = {k: v for k, v in data.items() if k in ("role", "status")}
@@ -721,19 +829,51 @@ class SupabaseDatabase(Database):
 
     def list_invites_for_email(self, email: str) -> list[dict]:
         rows = self._get("/shop_members", {
-            "invited_email": f"eq.{email.lower()}", "status": "eq.pending", "user_id": "is.null",
+            "invited_email": f"eq.{email.lower()}", "status": "eq.pending_invite", "user_id": "is.null",
             "select": "*,shop:shops(name)",
         }) or []
         for r in rows:
             r["shop_name"] = (r.get("shop") or {}).get("name")
         return rows
 
-    def accept_invite(self, shop_id: str, user_id: str, email: str) -> Optional[dict]:
+    def get_invite_by_token(self, token: str) -> Optional[dict]:
+        rows = self._get("/shop_members", {"invite_token": f"eq.{token}", "select": "*,shop:shops(name)"})
+        if not rows:
+            return None
+        r = rows[0]
+        r["shop_name"] = (r.get("shop") or {}).get("name")
+        return r
+
+    def accept_invite_by_token(self, token: str, user_id: str, email: str) -> dict:
+        inv = self.get_invite_by_token(token)
+        if not inv or inv.get("user_id") or inv.get("status") != "pending_invite":
+            raise ValueError("Lời mời không hợp lệ hoặc đã được sử dụng.")
+        if _is_expired(inv.get("invite_expires_at")):
+            raise ValueError("Lời mời đã hết hạn.")
+        if (inv.get("invited_email") or "").lower() != (email or "").lower():
+            raise ValueError("Email đăng nhập không khớp với email được mời.")
+        if self.get_active_membership(user_id):
+            raise ValueError("Bạn đã thuộc một cửa hàng. Hãy rời cửa hàng trước khi tham gia shop khác.")
         self._patch("/shop_members",
-                    {"user_id": user_id, "status": "active", "joined_at": "now()"},
-                    {"shop_id": f"eq.{shop_id}", "invited_email": f"eq.{email.lower()}",
-                     "user_id": "is.null", "status": "eq.pending"})
-        return self.get_membership(shop_id, user_id)
+                    {"user_id": user_id, "status": "active", "joined_at": "now()", "invite_token": None},
+                    {"id": f"eq.{inv['id']}"})
+        m = self.get_membership(inv["shop_id"], user_id)
+        return {**(m or {}), "shop_id": inv["shop_id"], "shop_name": inv.get("shop_name")}
+
+    def leave_shop(self, shop_id: str, user_id: str) -> None:
+        self._patch("/shop_members", {"status": "left"},
+                    {"shop_id": f"eq.{shop_id}", "user_id": f"eq.{user_id}", "status": "eq.active"})
+
+    def transfer_ownership(self, shop_id: str, from_user_id: str, to_member_id: str) -> None:
+        self._patch("/shop_members", {"role": "owner"}, {"id": f"eq.{to_member_id}", "shop_id": f"eq.{shop_id}"})
+        self._patch("/shop_members", {"role": "staff"},
+                    {"shop_id": f"eq.{shop_id}", "user_id": f"eq.{from_user_id}", "status": "eq.active"})
+        self._patch("/shops", {"transferred_owner_at": "now()"}, {"id": f"eq.{shop_id}"})
+
+    def delete_shop(self, shop_id: str) -> None:
+        self.clear_shop_data(shop_id)
+        self._delete("/shop_members", {"shop_id": f"eq.{shop_id}"})
+        self._delete("/shops", {"id": f"eq.{shop_id}"})
 
     # --- products (lọc shop_id) ---
     _PROD_FIELDS = ("name", "sku", "category", "price", "stock", "image_url", "description", "low_stock_threshold")
@@ -843,7 +983,7 @@ class SupabaseDatabase(Database):
         if email:
             for inv in self.list_invites_for_email(email):
                 out.append({
-                    "type": "invite", "shop_id": inv["shop_id"],
+                    "type": "invite", "token": inv.get("invite_token"),
                     "title": f"Lời mời vào {inv.get('shop_name') or 'cửa hàng'}",
                     "body": f"Bạn được mời làm {inv.get('role')}.", "role": inv.get("role"),
                 })

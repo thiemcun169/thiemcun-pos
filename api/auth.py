@@ -84,29 +84,21 @@ def _demo_ctx() -> dict:
     }
 
 
-def shop_context(user: Optional[dict] = Depends(current_user),
-                 x_shop_id: Optional[str] = Header(default=None)) -> dict:
+def shop_context(user: Optional[dict] = Depends(current_user)) -> dict:
     """Bối cảnh làm việc: ai + đang ở cửa hàng nào + vai trò gì.
 
+    LUẬT 1-SHOP: mỗi user chỉ thuộc TỐI ĐA 1 cửa hàng active -> không cần chọn/đổi.
     - Demo (chưa bật auth): owner của shop demo.
-    - Có auth: chọn shop theo header X-Shop-Id nếu user là thành viên active;
-      nếu header trỏ tới shop user KHÔNG thuộc (hoặc đã cũ) -> tự lùi về shop đầu
-      tiên CỦA CHÍNH HỌ (an toàn: user chỉ bao giờ chạm được shop của mình).
-      Nếu user chưa thuộc shop nào -> shop_id=None (frontend đưa vào onboarding).
+    - Có auth: lấy đúng membership active duy nhất (nếu có).
+    - Chưa thuộc shop nào -> shop_id=None (frontend đưa vào onboarding wizard).
     """
     if not auth_enabled():
         return _demo_ctx()
     if not user:
         return {"user": None, "user_id": None, "email": None, "shop_id": None, "role": None, "shops": []}
 
-    db = get_db()
-    shops = db.list_user_shops(user["id"])
-    chosen = None
-    if x_shop_id:
-        chosen = next((s for s in shops if str(s.get("id")) == str(x_shop_id)), None)
-    if chosen is None and shops:
-        chosen = shops[0]  # không khớp header -> lùi về shop mặc định (không lộ shop khác)
-
+    shops = get_db().list_user_shops(user["id"])  # tối đa 1 theo luật 1-shop
+    chosen = shops[0] if shops else None
     return {
         "user": user, "user_id": user["id"], "email": user.get("email"),
         "shop_id": chosen["id"] if chosen else None,
