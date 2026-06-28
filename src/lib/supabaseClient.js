@@ -52,6 +52,31 @@ export async function getAccessToken() {
   return data?.session?.access_token ?? null;
 }
 
+// --- MFA (TOTP) — xác thực 2 lớp ---
+export async function listMfaFactors() {
+  if (!supabase) return [];
+  const { data } = await supabase.auth.mfa.listFactors();
+  return data?.totp ?? [];
+}
+export async function enrollMfa() {
+  if (!supabase) throw new Error("Auth chưa cấu hình");
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "ThiemCun POS" });
+  if (error) throw new Error(error.message);
+  // data.totp.qr_code (SVG data URL), data.totp.secret, data.id (factorId)
+  return data;
+}
+export async function verifyMfa(factorId, code) {
+  if (!supabase) throw new Error("Auth chưa cấu hình");
+  const ch = await supabase.auth.mfa.challenge({ factorId });
+  if (ch.error) throw new Error(ch.error.message);
+  const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: ch.data.id, code });
+  if (error) throw new Error("Mã không đúng hoặc đã hết hạn.");
+}
+export async function unenrollMfa(factorId) {
+  if (!supabase) return;
+  await supabase.auth.mfa.unenroll({ factorId });
+}
+
 // Dịch vài lỗi Supabase sang tiếng Việt dễ hiểu.
 function viError(msg = "") {
   const m = msg.toLowerCase();
