@@ -1,11 +1,28 @@
-name: release — PROD deploy + migrate (gated)
+name: release — PROD deploy + migrate (manual, gated)
+
+# Triển khai PRODUCTION = bước CÓ KIỂM SOÁT của người chủ.
+#
+# Cổng duyệt (gate) ở repo PRIVATE phụ thuộc gói GitHub:
+#   * Gói Pro/Team/Enterprise (hoặc repo public): bật "Required reviewers" ở
+#     Settings → Environments → production → run sẽ DỪNG chờ duyệt. (environment: production bên dưới)
+#   * Gói Free + repo private: KHÔNG có required-reviewers → ta dùng cổng phần mềm:
+#     chỉ chạy bằng tay (workflow_dispatch) VÀ phải gõ đúng "DEPLOY-PROD".
+#
+# => Prod KHÔNG bao giờ tự động chạy khi push/tag. Phải là hành động thủ công + xác nhận.
+
 on:
-  push:
-    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Gõ chính xác DEPLOY-PROD để xác nhận triển khai PRODUCTION'
+        required: true
+        type: string
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment: production   # yêu cầu manual approval (Settings > Environments > production > required reviewers)
+    environment: production   # bật Required reviewers ở đây khi nâng Pro/public để có gate native
+    if: ${{ github.event.inputs.confirm == 'DEPLOY-PROD' }}
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
