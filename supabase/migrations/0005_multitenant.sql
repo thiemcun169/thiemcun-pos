@@ -145,10 +145,15 @@ begin
     from profiles p
     on conflict do nothing;
 
-  if v_owner is not null
-     and not exists (select 1 from shop_members where shop_id = v_shop and user_id = v_owner) then
-    insert into shop_members(shop_id, user_id, role, status, joined_at)
-      values (v_shop, v_owner, 'owner', 'active', now());
+  -- Bảo đảm chủ shop là OWNER: nâng nếu đã là thành viên (vd bị chèn 'staff' theo
+  -- profiles.role), chèn nếu chưa có. (Trước đây chỉ insert-nếu-thiếu -> có thể không owner.)
+  if v_owner is not null then
+    update shop_members set role = 'owner', status = 'active'
+      where shop_id = v_shop and user_id = v_owner;
+    if not found then
+      insert into shop_members(shop_id, user_id, role, status, joined_at)
+        values (v_shop, v_owner, 'owner', 'active', now());
+    end if;
   end if;
 end $$;
 
